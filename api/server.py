@@ -25,6 +25,8 @@ ws_clients: list[WebSocket] = []
 import threading
 recording_event = threading.Event()
 stop_event      = threading.Event()
+text_event      = threading.Event()
+pending_text    = {"value": ""}
 
 
 async def broadcast(message: dict):
@@ -54,6 +56,11 @@ async def websocket_endpoint(ws: WebSocket):
             elif cmd == "stop_recording":
                 print("🖥️  Dashboard → stop_recording")
                 stop_event.set()
+            elif cmd == "submit_text":
+                pending_text["value"] = data.get("text", "").strip()
+                if pending_text["value"]:
+                    print(f"\n🖥️  Dashboard → submit_text : {pending_text['value']}")
+                    text_event.set()
             elif cmd == "reset":
                 init_nodes(reset_load=True)
                 state["placements"] = []

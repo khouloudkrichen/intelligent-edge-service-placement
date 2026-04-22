@@ -1,10 +1,10 @@
-# core/detection.py - intention detection (explainable keyword + optional Ollama)
+# core/detection.py - intention detection with paragraph chunking
 
-import re
 import os
+import re
 from difflib import SequenceMatcher
 
-from data.dataset import intentions, INTENTIONS_BY_ID, VOICE_MAPPING, FR_WORDS
+from data.dataset import FR_WORDS, INTENTIONS_BY_ID, VOICE_MAPPING, intentions
 from services.llm import ollama_call
 
 
@@ -19,12 +19,18 @@ SERVICE_KEYWORDS = {
     "s1": ["voice", "vocal", "speak", "audio", "conversion", "voix", "record", "command"],
     "s2": ["protocol", "convert", "status", "operational", "retrieve", "logs", "history"],
     "s3": ["ar", "augmented", "reality", "visual", "inspect", "overlay", "sequence",
-           "guidance", "glasses", "assembly", "procedure"],
-    "s4": ["content", "display", "show", "highlight", "summary", "overlay"],
+           "guidance", "glasses", "assembly", "procedure", "instructions"],
+    "s4": ["content", "display", "show", "highlight", "summary", "overlay", "schematics"],
     "s5": ["error", "detect", "fault", "wear", "damage", "check", "verify", "alignment",
            "leak", "inconsistency"],
     "s6": ["anomaly", "analyze", "analysis", "vibration", "motor", "temperature",
            "pressure", "sensor", "load", "current", "predictive"],
+}
+
+ACTION_WORDS = {
+    "retrieve", "show", "display", "highlight", "detect", "check", "verify", "analyze",
+    "monitor", "provide", "generate", "perform", "capture", "send", "alert", "keep",
+    "deploy", "activate", "inspect", "replace",
 }
 
 
@@ -34,6 +40,64 @@ def normalize_text(text: str) -> str:
 
 def tokenize(text: str) -> list[str]:
     return [w for w in normalize_text(text).split() if w and w not in STOP_WORDS]
+
+
+def split_intent_chunks(text: str) -> list[str]:
+    """Split a paragraph into ordered sub-requests before classification.
+
+    The splitter is intentionally conservative: it uses sequencing connectors
+    first, then splits commas only when the right side looks like a new action.
+    Very short fragments are merged back into the previous chunk.
+    """
+    raw = re.sub(r"\s+", " ", (text or "").strip())
+    if not raw:
+        return []
+
+    connector_pattern = re.compile(
+        r"\b(?:(?:and\s+)?then|after\s+that|before\s+that|before\s+we|"
+        r"(?:and\s+)?finally|(?:and\s+)?next|first|second|third)\b",
+        flags=re.IGNORECASE,
+    )
+
+    protected = connector_pattern.sub(" <SPLIT> ", raw)
+    first_pass = [p.strip(" ,.;:") for p in protected.split("<SPLIT>") if p.strip(" ,.;:")]
+
+    chunks: list[str] = []
+    for part in first_pass:
+        comma_parts = [p.strip(" ,.;:") for p in re.split(r"\s*,\s*", part) if p.strip(" ,.;:")]
+        if len(comma_parts) <= 1:
+            chunks.append(part)
+            continue
+
+        current = comma_parts[0]
+        for candidate in comma_parts[1:]:
+            cand_words = set(tokenize(candidate))
+            cur_words = tokenize(current)
+            raw_candidate_words = set(normalize_text(candidate).split())
+            looks_like_action = bool(raw_candidate_words & ACTION_WORDS)
+            long_enough = len(cand_words) >= 3
+            current_long = len(cur_words) >= 3
+            if looks_like_action and long_enough and current_long:
+                chunks.append(current)
+                current = candidate
+            else:
+                current = f"{current}, {candidate}"
+        chunks.append(current)
+
+    cleaned: list[str] = []
+    for chunk in chunks:
+        chunk = chunk.strip(" ,.;:")
+        if not chunk:
+            continue
+        # Avoid over-splitting fragments like "AR instructions", but keep short
+        # action chunks such as "highlight errors" as independent requests.
+        has_action = bool(set(normalize_text(chunk).split()) & ACTION_WORDS)
+        if cleaned and len(tokenize(chunk)) < 3 and not has_action:
+            cleaned[-1] = f"{cleaned[-1]} {chunk}".strip()
+        else:
+            cleaned.append(chunk)
+
+    return cleaned or [raw]
 
 
 def _intent_tokens(intent: dict) -> set[str]:
@@ -75,7 +139,6 @@ def score_intention(text: str, intent: dict) -> dict:
             service_hits.append(svc_id)
     service_score = min(len(service_hits) * 2.0, 4.0)
 
-    # Broad intentions are valid, but they should not win from generic words alone.
     broad_penalty = 0.0
     if len(services) >= 5 and phrase_score < 8:
         broad_penalty = 5.0
@@ -152,7 +215,6 @@ def _select_ranked(ranked: list[dict], max_intents: int) -> list:
     selected = [top]
     used_svcs = set(top["intent"]["services"])
 
-    # Multi-intent is allowed only when later candidates add a new service and are strong.
     for r in ranked[1:]:
         if len(selected) >= max_intents:
             break
@@ -223,10 +285,11 @@ BEST ID(s):"""
         return []
 
 
-def detect_multiple_intentions(text: str) -> list:
+def _detect_single_block(text: str, max_intents: int | None = None) -> list:
     text_norm = normalize_text(text)
     is_french = len(set(text_norm.split()) & FR_WORDS) >= 1
-    max_intents = 1 if len(tokenize(text)) <= 6 else 3
+    if max_intents is None:
+        max_intents = 1 if len(tokenize(text)) <= 6 else 3
 
     ranked = rank_intentions(text)
     if is_french:
@@ -246,11 +309,48 @@ def detect_multiple_intentions(text: str) -> list:
         print(f"   Ollama agrees with local match: {sorted(local_ids & ollama_ids)}")
         return local
 
-    # If Ollama disagrees, keep the explainable local match unless local was empty.
     if local:
         print(f"   Ollama disagreement ignored; keeping local match {sorted(local_ids)}")
         return local
     return ollama_detected
+
+
+def detect_multiple_intentions(text: str) -> list:
+    """Detect ordered intentions from a single command or a multi-request paragraph."""
+    print(f"\nOriginal request: {text}")
+    chunks = split_intent_chunks(text)
+    print(f"Detected chunks ({len(chunks)}):")
+    for idx, chunk in enumerate(chunks, 1):
+        print(f"   chunk {idx}: {chunk}")
+
+    merged: list[dict] = []
+    seen_ids = set()
+    multi_chunk = len(chunks) > 1
+
+    for idx, chunk in enumerate(chunks, 1):
+        # Default to one best intent per chunk. Allow more only for long chunks
+        # that still look like they contain several actions.
+        action_count = len(set(tokenize(chunk)) & ACTION_WORDS)
+        max_for_chunk = 1
+        if len(tokenize(chunk)) >= 12 and action_count >= 2:
+            max_for_chunk = 2
+        if not multi_chunk and len(tokenize(chunk)) >= 18:
+            max_for_chunk = 3
+
+        print(f"\nChunk {idx} detection (max={max_for_chunk}): {chunk}")
+        detected = _detect_single_block(chunk, max_intents=max_for_chunk)
+        ids = [intent["id"] for intent in detected]
+        print(f"Chunk {idx} -> detected {ids if ids else 'none'}")
+
+        for intent in detected:
+            if intent["id"] in seen_ids:
+                print(f"   duplicate {intent['id']} ignored")
+                continue
+            merged.append(intent)
+            seen_ids.add(intent["id"])
+
+    print(f"Final merged intentions -> {[intent['id'] for intent in merged]}")
+    return merged
 
 
 def detect_intention(text: str):

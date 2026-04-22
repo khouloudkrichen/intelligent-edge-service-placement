@@ -2,7 +2,7 @@
 # config.py — Constantes globales IBN Voice
 # ═══════════════════════════════════════════════════════
 
-DATASET_FILE   = "dataset_1.json"
+DATASET_FILE   = "dataset_3 .json"
 WHISPER_MODEL  = "base"
 SAMPLE_RATE    = 16000
 SERVER_PORT    = 8081

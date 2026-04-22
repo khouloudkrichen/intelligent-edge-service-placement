@@ -1,0 +1,134 @@
+{
+  "services": [
+    {
+      "id": "s_small",
+      "name": "Tiny_Status_Check",
+      "resources": {
+        "CPU": 1,
+        "MEM": 1,
+        "DISK": 1,
+        "BW": 10
+      }
+    },
+    {
+      "id": "s_medium",
+      "name": "Medium_Analyzer",
+      "resources": {
+        "CPU": 2,
+        "MEM": 2,
+        "DISK": 1,
+        "BW": 20
+      }
+    },
+    {
+      "id": "s_heavy",
+      "name": "Heavy_AR_Module",
+      "resources": {
+        "CPU": 4,
+        "MEM": 4,
+        "DISK": 2,
+        "BW": 40
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "g1",
+      "type": "gateway",
+      "capacity": {
+        "CPU": 2,
+        "MEM": 2,
+        "DISK": 2,
+        "BW": 20
+      }
+    },
+    {
+      "id": "n1",
+      "type": "computing",
+      "capacity": {
+        "CPU": 5,
+        "MEM": 5,
+        "DISK": 4,
+        "BW": 50
+      }
+    },
+    {
+      "id": "n2",
+      "type": "computing",
+      "capacity": {
+        "CPU": 3,
+        "MEM": 3,
+        "DISK": 3,
+        "BW": 30
+      }
+    }
+  ],
+  "latency": {
+    "g1": [
+      25,
+      30,
+      35
+    ],
+    "n1": [
+      40,
+      45,
+      50
+    ],
+    "n2": [
+      55,
+      60,
+      65
+    ]
+  },
+  "intentions": [
+    {
+      "id": "i1",
+      "description": "Retrieve quick machine status.",
+      "services": [
+        "s_small"
+      ],
+      "QoS": {
+        "latency": 60,
+        "bandwidth": 10
+      },
+      "weight": 3
+    },
+    {
+      "id": "i2",
+      "description": "Analyze recent machine anomalies.",
+      "services": [
+        "s_medium"
+      ],
+      "QoS": {
+        "latency": 70,
+        "bandwidth": 20
+      },
+      "weight": 5
+    },
+    {
+      "id": "i3",
+      "description": "Display AR maintenance guidance.",
+      "services": [
+        "s_heavy"
+      ],
+      "QoS": {
+        "latency": 90,
+        "bandwidth": 40
+      },
+      "weight": 7
+    },
+    {
+      "id": "i4",
+      "description": "Run status check plus anomaly analysis.",
+      "services": [
+        "s_small",
+        "s_medium"
+      ],
+      "QoS": {
+        "latency": 70,
+        "bandwidth": 25
+      },
+      "weight": 6
+    }
+  ]
+}

@@ -17,6 +17,7 @@ from services.tts import speak
 from api.server import (
     broadcast,
     pending_text,
+    record_analytics_snapshot,
     recording_event,
     stop_event,
     text_event,
@@ -186,6 +187,7 @@ def process_text_command(text: str, lang: str, loop):
 
         history = _history_item(intent, results, text)
         state["placements"].insert(0, history)
+        record_analytics_snapshot()
         write_voice_placement(intent, results, text)
 
     state["placements"] = state["placements"][:20]

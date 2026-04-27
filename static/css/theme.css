@@ -1,0 +1,349 @@
+/* Shared light/dark theme for the IBN Voice Dashboard pages. */
+:root,
+body:not(.dark) {
+  --bg: #f3f7fb;
+  --panel: #ffffff;
+  --card: #ffffff;
+  --input: #ffffff;
+  --panel-2: #eef6ff;
+  --panel-3: #e3effc;
+  --text: #0f172a;
+  --muted: #64748b;
+  --muted-2: #94a3b8;
+  --border: #dbeafe;
+  --border-strong: #bae6fd;
+  --accent: #0284c7;
+  --accent-2: #0ea5e9;
+  --accent-3: #0369a1;
+  --danger: #dc2626;
+  --warn: #d97706;
+  --success: #059669;
+  --purple: #7c3aed;
+  --green: #16a34a;
+  --on-accent: #ffffff;
+  --shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+  --glow: 0 0 22px rgba(2, 132, 199, 0.16);
+  --button-bg: var(--card);
+  --input-bg: var(--input);
+  --graph-bg: #f8fbff;
+
+  /* Dashboard legacy aliases. */
+  --s: var(--panel);
+  --s2: var(--card);
+  --b: var(--border);
+  --a: var(--accent);
+  --t: var(--text);
+  --t2: var(--muted);
+  --t3: var(--muted-2);
+
+  /* Chatbot legacy aliases. */
+  --bg2: var(--panel-2);
+  --surface: var(--panel);
+  --surface2: var(--card);
+  --surface3: var(--panel-3);
+  --border2: var(--border-strong);
+  --accent2: var(--accent-2);
+  --accent3: var(--accent-3);
+  --text2: var(--muted);
+  --text3: var(--muted-2);
+}
+
+body.dark {
+  --bg: #050b14;
+  --panel: #0b1626;
+  --card: #111827;
+  --input: #0f172a;
+  --panel-2: #111827;
+  --panel-3: #172033;
+  --text: #e5f2ff;
+  --muted: #94a3b8;
+  --muted-2: #52657d;
+  --border: #1e3a5f;
+  --border-strong: #2c5878;
+  --accent: #22d3ee;
+  --accent-2: #0ea5e9;
+  --accent-3: #0369a1;
+  --danger: #f87171;
+  --warn: #f59e0b;
+  --success: #22c55e;
+  --purple: #a78bfa;
+  --green: #4ade80;
+  --on-accent: #06111f;
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+  --glow: 0 0 28px rgba(34, 211, 238, 0.16);
+  --button-bg: var(--card);
+  --input-bg: var(--input);
+  --graph-bg: #081320;
+}
+
+html,
+body {
+  color: var(--text);
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body {
+  background:
+    radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 28%),
+    radial-gradient(circle at 78% 8%, color-mix(in srgb, var(--purple) 8%, transparent), transparent 26%),
+    var(--bg) !important;
+}
+
+body::before,
+.bg-grid {
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px) !important;
+}
+
+.bg-glow {
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 8%, transparent) 0%, transparent 65%) !important;
+}
+
+.topbar,
+.ibn-topbar {
+  background: color-mix(in srgb, var(--panel) 94%, transparent) !important;
+  border-bottom: 1px solid var(--border) !important;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+}
+
+.logo-icon,
+.ibn-logo-icon {
+  background: linear-gradient(135deg, var(--accent), var(--accent-3)) !important;
+  color: var(--on-accent) !important;
+  box-shadow: var(--glow);
+}
+
+.logo-title,
+.ibn-logo-title {
+  color: var(--text) !important;
+}
+
+.logo-sub,
+.ibn-logo-sub {
+  color: var(--muted) !important;
+}
+
+.tab,
+.ibn-tab,
+.theme-btn,
+.reset-btn,
+.send-btn,
+.suggestion-btn,
+.followup-btn,
+.welcome-chip,
+.clear-btn,
+.toggle-btn {
+  border-color: var(--border) !important;
+  background: var(--button-bg) !important;
+  color: var(--muted) !important;
+}
+
+.tab:hover,
+.ibn-tab:hover,
+.theme-btn:hover,
+.reset-btn:hover,
+.send-btn:hover,
+.suggestion-btn:hover,
+.followup-btn:hover,
+.welcome-chip:hover,
+.clear-btn:hover,
+.toggle-btn:hover {
+  border-color: var(--border-strong) !important;
+  color: var(--text) !important;
+}
+
+.tab.active,
+.ibn-tab.active,
+.send-btn,
+.toggle-btn.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)) !important;
+  border-color: var(--accent) !important;
+  color: var(--on-accent) !important;
+  box-shadow: var(--glow);
+}
+
+.sidebar,
+.chat-area,
+.chat-header,
+.messages,
+.input-area,
+.theme-toggle {
+  background-color: var(--panel) !important;
+  border-color: var(--border) !important;
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+.card,
+.node-card,
+.kpi,
+.info-box,
+.log-item,
+.message-content,
+.input-box,
+.quick-actions,
+.examples-section,
+.stat-card,
+.row.bot .bubble,
+.typing,
+.quick-item {
+  background: var(--card) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+  box-shadow: var(--shadow);
+}
+
+.transcript-box,
+.text-input,
+.input-row,
+.chat-input,
+textarea,
+input {
+  background: var(--input-bg) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.input-row:focus-within,
+.chat-input:focus,
+.text-input:focus,
+textarea:focus,
+input:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent) !important;
+}
+
+.graph-container,
+#graphView canvas,
+#graphCanvas {
+  background-color: var(--graph-bg) !important;
+}
+
+.badge,
+.source-badge,
+.confidence-badge,
+.category-badge,
+.risk-badge {
+  border-color: var(--border-strong) !important;
+}
+
+.row.bot .bubble,
+.typing,
+.quick-item {
+  background: var(--card) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.row.user .bubble,
+.send-button,
+.avatar.bot {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)) !important;
+  color: var(--on-accent) !important;
+}
+
+/* Final dark-mode guardrail for large surfaces. */
+body.dark,
+body.dark .main,
+body.dark .view,
+body.dark #dashView,
+body.dark #graphView,
+body.dark .app,
+body.dark .chat-area,
+body.dark .messages {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+}
+
+body.dark .topbar,
+body.dark .ibn-topbar,
+body.dark .sidebar,
+body.dark .right,
+body.dark .left,
+body.dark .panel,
+body.dark .chat-header,
+body.dark .input-area,
+body.dark #nodePanel {
+  background: var(--panel) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+body.dark .card,
+body.dark .stat-card,
+body.dark .kpi,
+body.dark .info-box,
+body.dark .node-card,
+body.dark .log-item,
+body.dark .graph-legend,
+body.dark .graph-tooltip,
+body.dark .message-content,
+body.dark .bubble,
+body.dark .row.bot .bubble,
+body.dark .quick-item,
+body.dark .welcome-chip,
+body.dark .theme-toggle,
+body.dark .input-box,
+body.dark .examples-section,
+body.dark .chat-container,
+body.dark .modal,
+body.dark [style*="background:var(--s)"],
+body.dark [style*="background: var(--s)"] {
+  background: var(--card) !important;
+  background-color: var(--card) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+body.dark textarea,
+body.dark input,
+body.dark .text-input,
+body.dark .transcript-box,
+body.dark .input-row,
+body.dark .chat-input {
+  background: var(--input) !important;
+  background-color: var(--input) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+body.dark .graph-container,
+body.dark #graphCanvas,
+body.dark #graphView canvas {
+  background: var(--graph-bg) !important;
+  background-color: var(--graph-bg) !important;
+}
+
+body.dark .graph-wrapper {
+  background: var(--panel) !important;
+  background-color: var(--panel) !important;
+  color: var(--text) !important;
+}
+
+body.dark .graph-panel,
+body.dark .stats-box,
+body.dark .legend-bar,
+body.dark .details-panel,
+body.dark .right-panel,
+body.dark .top-card,
+body.dark .neo-box,
+body.dark .sidebar-box,
+body.dark .refresh-panel,
+body.dark canvas,
+body.dark .cy-container {
+  background: var(--card) !important;
+  background-color: var(--card) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+body.dark #nodePanel,
+body.dark #panelEmpty,
+body.dark #panelContent {
+  background: var(--card) !important;
+  background-color: var(--card) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}

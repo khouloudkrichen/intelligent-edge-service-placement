@@ -5,14 +5,12 @@
 from config import SERVER_PORT
 
 DASHBOARD_HTML = f"""<!DOCTYPE html>
-<html lang="fr" data-theme="dark">
+<html lang="fr">
 <head>
 <meta charset="UTF-8">
 <title>IBN Voice Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-[data-theme="dark"]  {{ --bg:#070b12; --s:#111827; --s2:#1a2540; --b:rgba(56,189,248,0.12); --a:#38bdf8; --t:#e2e8f0; --t2:#94a3b8; --t3:#475569; }}
-[data-theme="light"] {{ --bg:#f0f4f8; --s:#fff; --s2:#f1f5fb; --b:rgba(14,165,233,0.18); --a:#0284c7; --t:#0f172a; --t2:#334155; --t3:#94a3b8; }}
 *,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
 body{{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--t);height:100vh;overflow:hidden;transition:background .3s}}
 body::before{{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--b) 1px,transparent 1px),linear-gradient(90deg,var(--b) 1px,transparent 1px);background-size:40px 40px;opacity:.5;pointer-events:none}}
@@ -88,13 +86,13 @@ body::before{{content:'';position:fixed;inset:0;background-image:linear-gradient
 .log-time{{font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--t3);flex-shrink:0}}
 .log-empty{{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--t3);padding:12px;text-align:center}}
 .tabs{{display:flex;gap:4px;margin-left:20px}}
-.tab{{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;padding:6px 14px;border-radius:4px;border:1px solid var(--b);background:transparent;color:var(--t3);cursor:pointer;transition:all .2s}}
+.tab{{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;padding:6px 14px;border-radius:4px;border:1px solid var(--b);background:transparent;color:var(--t3);cursor:pointer;transition:all .2s;text-decoration:none}}
 .tab:hover{{border-color:var(--a);color:var(--a)}}
 .tab.active{{background:rgba(56,189,248,.15);border-color:var(--a);color:var(--a)}}
 .view{{display:none}}
 .view.active{{display:flex}}
 #graphView{{flex-direction:column;padding:14px;gap:10px;height:calc(100vh - 53px);overflow:hidden}}
-.graph-container{{flex:1;background:linear-gradient(135deg,#070b12 0%,#0d1526 100%);border:1px solid var(--b);border-radius:8px;overflow:hidden;position:relative;min-height:0}}
+.graph-container{{flex:1;background:var(--graph-bg, var(--s2));border:1px solid var(--b);border-radius:8px;overflow:hidden;position:relative;min-height:0}}
 .graph-canvas{{width:100%;height:100%;display:block}}
 .graph-legend{{display:flex;gap:12px;padding:8px 16px;background:var(--s);border:1px solid var(--b);border-radius:6px;align-items:center;flex-wrap:wrap}}
 .legend-item{{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--t2)}}
@@ -103,6 +101,7 @@ body::before{{content:'';position:fixed;inset:0;background-image:linear-gradient
 .graph-tooltip{{position:absolute;background:var(--s);border:1px solid var(--a);border-radius:4px;padding:8px 12px;font-size:11px;color:var(--t);pointer-events:none;display:none;z-index:100;max-width:220px;font-family:'JetBrains Mono',monospace}}
 #graphView .card-title{{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;color:var(--a);letter-spacing:.1em;text-transform:uppercase}}
 </style>
+<link rel="stylesheet" href="/static/css/theme.css">
 </head>
 <body>
 <div class="topbar">
@@ -116,6 +115,8 @@ body::before{{content:'';position:fixed;inset:0;background-image:linear-gradient
   <div class="tabs">
     <button class="tab active" id="tabDash" onclick="switchTab('dashboard')">📊 Dashboard</button>
     <button class="tab" id="tabGraph" onclick="switchTab('graph')">🕸️ Graphe Neo4j</button>
+    <button class="tab" id="tabChatbot" onclick="window.location.href='/chatbot'">💬 Chatbot</button>
+    <a class="tab" id="tabAnalytics" href="/analytics">📈 Analytics</a>
   </div>
   <div class="topbar-right">
     <button class="mic-btn" id="micBtn" onclick="toggleRecording()">🎤 Parler</button>
@@ -184,23 +185,23 @@ body::before{{content:'';position:fixed;inset:0;background-image:linear-gradient
 </div>
 
 <!-- ═══ VUE GRAPHE NEO4J ═══ -->
-<div id="graphView" class="view" style="flex-direction:column;padding:12px;gap:10px;height:calc(100vh - 53px);overflow:hidden">
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;flex-shrink:0">
-    <div style="background:var(--s);border:1px solid var(--b);border-radius:6px;padding:10px 14px">
+<div id="graphView" class="view graph-wrapper" style="flex-direction:column;padding:12px;gap:10px;height:calc(100vh - 53px);overflow:hidden">
+  <div class="graph-stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;flex-shrink:0">
+    <div class="stats-box top-card neo-box" style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:10px 14px">
       <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:#7dd3fc" id="gTotalNodes">0</div>
       <div style="font-size:9px;color:var(--t3);letter-spacing:.08em;text-transform:uppercase;margin-top:2px">Intentions</div>
     </div>
-    <div style="background:var(--s);border:1px solid var(--b);border-radius:6px;padding:10px 14px">
+    <div class="stats-box top-card neo-box" style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:10px 14px">
       <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:#22d3ee" id="gTotalIbn">0</div>
       <div style="font-size:9px;color:var(--t3);letter-spacing:.08em;text-transform:uppercase;margin-top:2px">Nœuds IBN</div>
     </div>
-    <div style="background:var(--s);border:1px solid var(--b);border-radius:6px;padding:10px 14px">
+    <div class="stats-box top-card neo-box" style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:10px 14px">
       <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:#a78bfa" id="gTotalEdges">0</div>
       <div style="font-size:9px;color:var(--t3);letter-spacing:.08em;text-transform:uppercase;margin-top:2px">Placements</div>
     </div>
   </div>
 
-  <div style="display:flex;gap:10px;padding:7px 14px;background:var(--s);border:1px solid var(--b);border-radius:6px;align-items:center;flex-wrap:wrap;flex-shrink:0">
+  <div class="legend-bar graph-panel neo-box" style="display:flex;gap:10px;padding:7px 14px;background:var(--card);border:1px solid var(--border);border-radius:6px;align-items:center;flex-wrap:wrap;flex-shrink:0">
     <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.1em">Légende</span>
     <div class="legend-item"><div class="legend-dot" style="background:#38bdf8"></div>Intention succès</div>
     <div class="legend-item"><div class="legend-dot" style="background:#f87171"></div>Intention échec</div>
@@ -209,22 +210,22 @@ body::before{{content:'';position:fixed;inset:0;background-image:linear-gradient
     <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Nœud chargé (&gt;50%)</div>
     <div class="legend-item"><div class="legend-dot" style="background:#f87171"></div>Nœud saturé (&gt;80%)</div>
     <div class="legend-item"><div style="width:20px;height:2px;background:#22d3ee;border-radius:1px"></div>PLACED_ON</div>
-    <div class="legend-item" style="color:#64748b;font-size:10px">🖱️ Clic = détails</div>
-    <button onclick="loadGraph()" style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;padding:5px 14px;border-radius:4px;border:1px solid var(--a);background:rgba(56,189,248,.1);color:var(--a);cursor:pointer">↻ Rafraîchir</button>
+    <div class="legend-item" style="color:var(--t2);font-size:10px">🖱️ Clic = détails</div>
+    <button class="refresh-panel neo-box" onclick="loadGraph()" style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;padding:5px 14px;border-radius:4px;border:1px solid var(--a);background:var(--input);color:var(--a);cursor:pointer">↻ Rafraîchir</button>
   </div>
 
-  <div style="flex:1;display:flex;gap:10px;min-height:0">
-    <div style="flex:1;background:linear-gradient(135deg,#060a10 0%,#0c1420 50%,#060a10 100%);border:1px solid var(--b);border-radius:8px;overflow:hidden;position:relative;min-height:0">
+  <div class="graph-body graph-wrapper" style="flex:1;display:flex;gap:10px;min-height:0">
+    <div class="graph-panel cy-container neo-box" style="flex:1;background:var(--graph-bg, var(--card));border:1px solid var(--border);border-radius:8px;overflow:hidden;position:relative;min-height:0">
       <canvas id="graphCanvas" style="width:100%;height:100%;display:block"></canvas>
-      <div id="graphHint" style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);font-family:'JetBrains Mono',monospace;font-size:10px;color:#334155;pointer-events:none">
+      <div id="graphHint" style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--t3);pointer-events:none">
         🖱️ Clique sur un nœud pour voir ses détails
       </div>
     </div>
 
-    <div id="nodePanel" style="width:280px;flex-shrink:0;background:var(--s);border:1px solid var(--b);border-radius:8px;overflow-y:auto;transition:all .3s">
+    <div id="nodePanel" class="details-panel right-panel sidebar-box graph-panel neo-box" style="width:280px;flex-shrink:0;background:var(--card);border:1px solid var(--border);border-radius:8px;overflow-y:auto;transition:all .3s">
       <div id="panelEmpty" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;padding:20px;text-align:center">
         <div style="font-size:36px;opacity:.3">🕸️</div>
-        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#334155;line-height:1.6">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--t3);line-height:1.6">
           Clique sur un nœud<br>pour afficher<br>ses détails
         </div>
       </div>
@@ -423,12 +424,19 @@ function updateStats(s) {{
   document.getElementById('kpiFail').textContent = s.fail;
 }}
 
-function toggleTheme() {{
-  const html = document.documentElement;
-  const t = html.getAttribute('data-theme')==='dark'?'light':'dark';
-  html.setAttribute('data-theme', t);
-  document.querySelector('.theme-btn').textContent = t==='dark'?'🌙':'☀️';
+function applyTheme(theme) {{
+  const dark = theme === 'dark';
+  document.body.classList.toggle('dark', dark);
+  localStorage.setItem('ibn-theme', dark ? 'dark' : 'light');
+  document.querySelector('.theme-btn').textContent = dark ? '☀️' : '🌙';
 }}
+
+function toggleTheme() {{
+  const next = document.body.classList.contains('dark') ? 'light' : 'dark';
+  applyTheme(next);
+}}
+
+applyTheme(localStorage.getItem('ibn-theme') || 'dark');
 
 function switchTab(tab) {{
   document.getElementById('dashView').classList.toggle('active', tab === 'dashboard');
@@ -436,6 +444,10 @@ function switchTab(tab) {{
   document.getElementById('tabDash').classList.toggle('active', tab === 'dashboard');
   document.getElementById('tabGraph').classList.toggle('active', tab === 'graph');
   if (tab === 'graph') loadGraph();
+}}
+
+if (window.location.hash === '#graph') {{
+  switchTab('graph');
 }}
 
 let graphData = {{ nodes: [], edges: [] }};
@@ -525,7 +537,7 @@ function showPanel(n) {{
           <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#94a3b8">${{label}}</span>
           <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:${{c}}">${{used}}/${{cap}} (${{pct}}%)</span>
         </div>
-        <div style="height:5px;background:#1e293b;border-radius:3px;overflow:hidden">
+        <div style="height:5px;background:var(--s);border-radius:3px;overflow:hidden">
           <div style="height:100%;width:${{w}}%;background:${{c}};border-radius:3px;transition:width .4s"></div>
         </div>
       </div>`;
@@ -536,51 +548,51 @@ function showPanel(n) {{
         <div style="width:36px;height:36px;border-radius:8px;background:rgba(56,189,248,.1);border:1px solid ${{typeCol}}33;display:flex;align-items:center;justify-content:center;font-size:18px">${{typeIcon}}</div>
         <div>
           <div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:${{typeCol}}">${{n.id.toUpperCase()}}</div>
-          <div style="font-size:10px;color:#64748b">${{isGW ? 'Gateway Node' : 'Computing Node'}}</div>
+          <div style="font-size:10px;color:var(--t2)">${{isGW ? 'Gateway Node' : 'Computing Node'}}</div>
         </div>
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
-        <div style="background:#0f172a;border-radius:6px;padding:8px;border:1px solid var(--b)">
-          <div style="font-size:9px;color:#64748b;margin-bottom:3px;font-family:'JetBrains Mono',monospace">STATUT</div>
+        <div style="background:var(--s2);border-radius:6px;padding:8px;border:1px solid var(--b)">
+          <div style="font-size:9px;color:var(--t2);margin-bottom:3px;font-family:'JetBrains Mono',monospace">STATUT</div>
           <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:${{statCol}}">${{statTxt}}</div>
         </div>
-        <div style="background:#0f172a;border-radius:6px;padding:8px;border:1px solid var(--b)">
-          <div style="font-size:9px;color:#64748b;margin-bottom:3px;font-family:'JetBrains Mono',monospace">LATENCE</div>
+        <div style="background:var(--s2);border-radius:6px;padding:8px;border:1px solid var(--b)">
+          <div style="font-size:9px;color:var(--t2);margin-bottom:3px;font-family:'JetBrains Mono',monospace">LATENCE</div>
           <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:#38bdf8">${{n.lat}}ms</div>
-          <div style="font-size:8px;color:#334155">${{n.lat_min}}–${{n.lat_max}}ms</div>
+          <div style="font-size:8px;color:var(--t3)">${{n.lat_min}}–${{n.lat_max}}ms</div>
         </div>
       </div>
 
-      <div style="background:#0f172a;border-radius:6px;padding:10px;border:1px solid var(--b);margin-bottom:14px">
+      <div style="background:var(--s2);border-radius:6px;padding:10px;border:1px solid var(--b);margin-bottom:14px">
         <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.08em">Charge globale</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--t2);text-transform:uppercase;letter-spacing:.08em">Charge globale</span>
           <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:${{loadCol}}">${{pMax}}%</span>
         </div>
-        <div style="height:6px;background:#1e293b;border-radius:3px;overflow:hidden">
+        <div style="height:6px;background:var(--s);border-radius:3px;overflow:hidden">
           <div style="height:100%;width:${{pMax}}%;background:${{loadCol}};border-radius:3px;box-shadow:0 0 6px ${{loadCol}}66"></div>
         </div>
       </div>
 
-      <div style="background:#0f172a;border-radius:6px;padding:10px;border:1px solid var(--b);margin-bottom:14px">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Ressources</div>
+      <div style="background:var(--s2);border-radius:6px;padding:10px;border:1px solid var(--b);margin-bottom:14px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--t2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Ressources</div>
         ${{resRow('CPU', n.used_cpu, n.cap_cpu+' cores', n.pct_cpu, '#38bdf8')}}
         ${{resRow('MEM', n.used_mem+'G', n.cap_mem+'G', n.pct_mem, '#818cf8')}}
         ${{resRow('BW', n.used_bw+'M', n.cap_bw+'M', n.pct_bw, '#f59e0b')}}
         <div style="display:flex;justify-content:space-between;margin-top:6px">
-          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#64748b">DISK</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--t2)">DISK</span>
           <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#34d399">${{n.used_disk}}G / ${{n.cap_disk}}G</span>
         </div>
       </div>
 
-      <div style="background:#0f172a;border-radius:6px;padding:10px;border:1px solid var(--b)">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">
+      <div style="background:var(--s2);border-radius:6px;padding:10px;border:1px solid var(--b)">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--t2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">
           Intentions placées (${{n.intents.length}})
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:5px">
           ${{n.intents.length
             ? n.intents.map(i=>`<span style="background:rgba(56,189,248,.12);color:#38bdf8;padding:3px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10px;border:1px solid rgba(56,189,248,.2)">${{i}}</span>`).join('')
-            : '<span style="color:#334155;font-size:11px">Aucune intention</span>'
+            : '<span style="color:var(--t3);font-size:11px">Aucune intention</span>'
           }}
         </div>
       </div>`;
@@ -596,25 +608,25 @@ function showPanel(n) {{
         </div>
       </div>
 
-      <div style="background:#0f172a;border-radius:6px;padding:10px;border:1px solid var(--b);margin-bottom:10px">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#64748b;margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em">Description</div>
-        <div style="font-size:11px;color:#e2e8f0;line-height:1.6">${{n.desc || '—'}}</div>
+      <div style="background:var(--s2);border-radius:6px;padding:10px;border:1px solid var(--b);margin-bottom:10px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--t2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em">Description</div>
+        <div style="font-size:11px;color:var(--t);line-height:1.6">${{n.desc || '—'}}</div>
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-        <div style="background:#0f172a;border-radius:6px;padding:8px;border:1px solid var(--b)">
-          <div style="font-size:9px;color:#64748b;margin-bottom:3px;font-family:'JetBrains Mono',monospace">SERVICES</div>
+        <div style="background:var(--s2);border-radius:6px;padding:8px;border:1px solid var(--b)">
+          <div style="font-size:9px;color:var(--t2);margin-bottom:3px;font-family:'JetBrains Mono',monospace">SERVICES</div>
           <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#a78bfa">${{n.services || '—'}}</div>
         </div>
-        <div style="background:#0f172a;border-radius:6px;padding:8px;border:1px solid var(--b)">
-          <div style="font-size:9px;color:#64748b;margin-bottom:3px;font-family:'JetBrains Mono',monospace">TIMESTAMP</div>
+        <div style="background:var(--s2);border-radius:6px;padding:8px;border:1px solid var(--b)">
+          <div style="font-size:9px;color:var(--t2);margin-bottom:3px;font-family:'JetBrains Mono',monospace">TIMESTAMP</div>
           <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#38bdf8">${{n.ts || '—'}}</div>
         </div>
       </div>
 
-      <div style="background:#0f172a;border-radius:6px;padding:10px;border:1px solid var(--b)">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#64748b;margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em">Commande vocale</div>
-        <div style="font-size:10px;color:#64748b;font-style:italic;line-height:1.5">"${{(n.voice_text||'').slice(0,120)}}${{(n.voice_text||'').length>120?'...':''}}"</div>
+      <div style="background:var(--s2);border-radius:6px;padding:10px;border:1px solid var(--b)">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--t2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em">Commande vocale</div>
+        <div style="font-size:10px;color:var(--t2);font-style:italic;line-height:1.5">"${{(n.voice_text||'').slice(0,120)}}${{(n.voice_text||'').length>120?'...':''}}"</div>
       </div>`;
   }}
 }}
@@ -624,6 +636,7 @@ function runSimulation() {{
   canvas.width = canvas.offsetWidth;
   canvas.height = canvas.offsetHeight;
   const ctx = canvas.getContext('2d');
+  const cssVar = name => getComputedStyle(document.body).getPropertyValue(name).trim();
   const nodeMap = {{}};
   graphData.nodes.forEach(n => nodeMap[n.id] = n);
 
@@ -660,7 +673,7 @@ function runSimulation() {{
 
     ctx.clearRect(0, 0, W, H);
 
-    ctx.strokeStyle = 'rgba(56,189,248,0.04)';
+    ctx.strokeStyle = cssVar('--border');
     ctx.lineWidth = 1;
     for (let x = 0; x < W; x += 40) {{ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }}
     for (let y = 0; y < H; y += 40) {{ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }}
@@ -680,7 +693,7 @@ function runSimulation() {{
       ctx.closePath(); ctx.fillStyle = 'rgba(34,211,238,0.7)'; ctx.fill();
 
       const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
-      ctx.font = '9px JetBrains Mono'; ctx.fillStyle = '#64748b';
+      ctx.font = '9px JetBrains Mono'; ctx.fillStyle = cssVar('--muted');
       ctx.textAlign = 'center'; ctx.fillText(e.lat ? e.lat+'ms' : '', mx, my-4);
     }});
 
@@ -693,11 +706,11 @@ function runSimulation() {{
         r = n.node_type === 'gateway' ? 20 : 24;
         const pctMax = Math.max(n.pct_cpu||0, n.pct_mem||0, n.pct_bw||0);
         fillColor = pctMax >= 80 ? '#f87171' : pctMax >= 50 ? '#f59e0b' : n.active ? '#22d3ee' : '#475569';
-        strokeColor = isSel ? '#fff' : n.active ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.1)';
+        strokeColor = isSel ? cssVar('--text') : n.active ? cssVar('--border-strong') : cssVar('--border');
       }} else {{
         r = 17;
         fillColor = n.success === false ? '#f87171' : '#38bdf8';
-        strokeColor = isSel ? '#fff' : 'rgba(255,255,255,0.3)';
+        strokeColor = isSel ? cssVar('--text') : cssVar('--border-strong');
       }}
 
       if (isHover || isSel) {{
@@ -711,7 +724,7 @@ function runSimulation() {{
       ctx.shadowBlur = 0;
 
       ctx.font = `bold ${{n.type==='ibnnode'?11:10}}px 'JetBrains Mono',monospace`;
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = cssVar('--on-accent');
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(n.label, n.x, n.y);
@@ -719,11 +732,11 @@ function runSimulation() {{
       if (n.type === 'ibnnode') {{
         const badge = n.node_type === 'gateway' ? 'GW' : 'CP';
         ctx.font = '7px JetBrains Mono';
-        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.fillStyle = cssVar('--muted');
         ctx.fillText(badge, n.x, n.y + r + 10);
 
         const bw2 = 36, bh2 = 3, bx2 = n.x - bw2/2, by2 = n.y + r + 16;
-        ctx.fillStyle = 'rgba(255,255,255,0.08)';
+        ctx.fillStyle = cssVar('--border');
         ctx.beginPath();
         if (ctx.roundRect) {{
           ctx.roundRect(bx2,by2,bw2,bh2,2);

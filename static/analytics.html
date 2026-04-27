@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IBN - Analytics</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  min-height: 100vh;
+  font-family: 'Outfit', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+}
+.analytics-page {
+  height: calc(100vh - 53px);
+  overflow-y: auto;
+  padding: 16px;
+}
+.analytics-shell {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 12px;
+}
+.analytics-card {
+  grid-column: span 4;
+  min-height: 260px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  box-shadow: var(--shadow);
+}
+.analytics-card.wide { grid-column: span 8; }
+.analytics-card.full { grid-column: span 12; }
+.analytics-card.small { min-height: 140px; }
+.card-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.kpi {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+.kpi-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text);
+}
+.kpi-label {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.warning-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.warning {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 12px;
+  min-height: 82px;
+}
+.warning strong {
+  display: block;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text);
+  font-size: 11px;
+  margin-bottom: 7px;
+}
+.warning span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.warning.ok { border-color: color-mix(in srgb, var(--success) 45%, var(--border)); }
+.warning.warn { border-color: color-mix(in srgb, var(--warn) 55%, var(--border)); }
+.warning.bad { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); }
+.node-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+}
+.node-table th,
+.node-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 8px 6px;
+  text-align: left;
+}
+.node-table th { color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.node-table td { color: var(--text); }
+.chart-wrap {
+  position: relative;
+  height: 210px;
+}
+.analytics-card.wide .chart-wrap { height: 240px; }
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 24px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  height: 53px;
+}
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: var(--on-accent);
+}
+.logo-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.logo-sub { font-size: 10px; color: var(--muted); }
+.tabs { display: flex; gap: 4px; margin-left: 20px; }
+.tab {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 6px 14px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  cursor: pointer;
+}
+.tab.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.topbar-right { margin-left: auto; color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+@media (max-width: 1100px) {
+  .analytics-card,
+  .analytics-card.wide { grid-column: span 6; }
+  .kpi-grid,
+  .warning-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 760px) {
+  body { overflow: auto; }
+  .analytics-page { height: auto; }
+  .analytics-card,
+  .analytics-card.wide,
+  .analytics-card.full { grid-column: span 12; }
+  .tabs { overflow-x: auto; margin-left: 6px; }
+  .tab { white-space: nowrap; }
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-icon">📈</div>
+    <div>
+      <div class="logo-title">IBN - Voice Dashboard</div>
+      <div class="logo-sub">Load Balancing & Scalability</div>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab" onclick="window.location.href='/'">📊 Dashboard</button>
+    <button class="tab" onclick="window.location.href='/#graph'">🕸️ Graphe Neo4j</button>
+    <button class="tab" onclick="window.location.href='/chatbot'">🤖 Chatbot</button>
+    <a class="tab active" href="/analytics">📈 Analytics</a>
+  </div>
+  <div class="topbar-right" id="updatedAt">Updating...</div>
+</div>
+
+<main class="analytics-page">
+  <section class="analytics-shell">
+    <div class="analytics-card full small">
+      <div class="card-title">Cluster Summary</div>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-value" id="balanceScore">0</div><div class="kpi-label">Load balance score</div></div>
+        <div class="kpi"><div class="kpi-value" id="headroom">0%</div><div class="kpi-label">Scalability headroom</div></div>
+        <div class="kpi"><div class="kpi-value" id="freeCpu">0</div><div class="kpi-label">Free CPU cores</div></div>
+        <div class="kpi"><div class="kpi-value" id="freeBw">0</div><div class="kpi-label">Free bandwidth Mbps</div></div>
+      </div>
+    </div>
+
+    <div class="analytics-card"><div class="card-title">CPU Usage Per Node</div><div class="chart-wrap"><canvas id="cpuChart"></canvas></div></div>
+    <div class="analytics-card"><div class="card-title">Memory Usage Per Node</div><div class="chart-wrap"><canvas id="memChart"></canvas></div></div>
+    <div class="analytics-card"><div class="card-title">Bandwidth Usage Per Node</div><div class="chart-wrap"><canvas id="bwChart"></canvas></div></div>
+    <div class="analytics-card"><div class="card-title">Placement Distribution</div><div class="chart-wrap"><canvas id="placementChart"></canvas></div></div>
+    <div class="analytics-card wide"><div class="card-title">Average Latency Over Placements</div><div class="chart-wrap"><canvas id="latencyChart"></canvas></div></div>
+    <div class="analytics-card wide"><div class="card-title">Cluster Resource Usage Vs Capacity</div><div class="chart-wrap"><canvas id="clusterChart"></canvas></div></div>
+    <div class="analytics-card"><div class="card-title">Capacity Remaining Per Node</div><div class="chart-wrap"><canvas id="remainingChart"></canvas></div></div>
+
+    <div class="analytics-card full small">
+      <div class="card-title">Scalability Capacity</div>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-value" id="smallCap">0</div><div class="kpi-label">Additional small services</div></div>
+        <div class="kpi"><div class="kpi-value" id="mediumCap">0</div><div class="kpi-label">Additional medium services</div></div>
+        <div class="kpi"><div class="kpi-value" id="largeCap">0</div><div class="kpi-label">Additional large services</div></div>
+        <div class="kpi"><div class="kpi-value" id="usedTotal">0%</div><div class="kpi-label">Average cluster usage</div></div>
+      </div>
+    </div>
+
+    <div class="analytics-card full small">
+      <div class="card-title">Warnings</div>
+      <div class="warning-grid" id="warnings"></div>
+    </div>
+
+    <div class="analytics-card full">
+      <div class="card-title">Node Analytics Table</div>
+      <table class="node-table">
+        <thead><tr><th>Node</th><th>CPU</th><th>MEM</th><th>DISK</th><th>BW</th><th>Intentions</th><th>Services</th><th>Avg Latency</th></tr></thead>
+        <tbody id="nodeTable"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script>
+function setThemeFromStorage() {
+  const theme = localStorage.getItem('ibn-theme') || 'dark';
+  document.body.classList.toggle('dark', theme === 'dark');
+}
+setThemeFromStorage();
+
+const colorVar = name => getComputedStyle(document.body).getPropertyValue(name).trim();
+const chartColors = () => ({
+  text: colorVar('--text'),
+  muted: colorVar('--muted'),
+  border: colorVar('--border'),
+  accent: colorVar('--accent'),
+  success: colorVar('--success'),
+  warn: colorVar('--warn'),
+  danger: colorVar('--danger'),
+  purple: colorVar('--purple'),
+});
+
+function chartOptions() {
+  const c = chartColors();
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: c.muted, font: { family: 'JetBrains Mono', size: 10 } } } },
+    scales: {
+      x: { ticks: { color: c.muted }, grid: { color: c.border } },
+      y: { beginAtZero: true, ticks: { color: c.muted }, grid: { color: c.border } },
+    },
+  };
+}
+
+function makeChart(id, type, labels, datasets, options = {}) {
+  return new Chart(document.getElementById(id), {
+    type,
+    data: { labels, datasets },
+    options: { ...chartOptions(), ...options },
+  });
+}
+
+const charts = {};
+
+function initCharts() {
+  const c = chartColors();
+  charts.cpu = makeChart('cpuChart', 'bar', [], [{ label: 'CPU %', data: [], backgroundColor: c.accent }]);
+  charts.mem = makeChart('memChart', 'bar', [], [{ label: 'MEM %', data: [], backgroundColor: c.purple }]);
+  charts.bw = makeChart('bwChart', 'bar', [], [{ label: 'BW %', data: [], backgroundColor: c.success }]);
+  charts.placement = makeChart('placementChart', 'doughnut', [], [{
+    label: 'Placements',
+    data: [],
+    backgroundColor: [c.accent, c.purple, c.success, c.warn, c.danger, '#64748b'],
+    borderColor: colorVar('--card'),
+  }], { scales: {} });
+  charts.latency = makeChart('latencyChart', 'line', [], [{
+    label: 'Latency ms',
+    data: [],
+    fill: true,
+    borderColor: c.accent,
+    backgroundColor: 'rgba(34, 211, 238, 0.12)',
+    tension: .35,
+  }]);
+  charts.cluster = makeChart('clusterChart', 'bar', ['CPU', 'MEM', 'DISK', 'BW'], [
+    { label: 'Used', data: [], backgroundColor: c.accent },
+    { label: 'Free', data: [], backgroundColor: c.success },
+  ], { scales: { x: { stacked: true, ticks: { color: c.muted }, grid: { color: c.border } }, y: { stacked: true, ticks: { color: c.muted }, grid: { color: c.border } } } });
+  charts.remaining = makeChart('remainingChart', 'bar', [], [{ label: 'Remaining %', data: [], backgroundColor: c.success }]);
+}
+
+function updateChart(chart, labels, datasets) {
+  chart.data.labels = labels;
+  chart.data.datasets.forEach((ds, i) => {
+    ds.data = datasets[i] || [];
+  });
+  chart.update();
+}
+
+function renderWarnings(w) {
+  const overloaded = w.overloaded_node || [];
+  const cards = [
+    ['balanced', w.balanced, 'Balanced', w.balanced ? 'CPU load is evenly distributed.' : 'Load distribution can be improved.'],
+    ['bad', overloaded.length > 0, 'Overloaded node', overloaded.length ? overloaded.join(', ') : 'No node above overload threshold.'],
+    ['warn', w.near_saturation, 'Near saturation', w.near_saturation ? 'Cluster headroom is low.' : 'Capacity headroom is acceptable.'],
+    ['bad', w.no_feasible_node, 'No feasible node', w.no_feasible_node ? 'No node can accept a small service profile.' : 'At least one small service remains feasible.'],
+  ];
+  document.getElementById('warnings').innerHTML = cards.map(([kind, active, title, text]) => {
+    const cls = active ? kind : 'ok';
+    return `<div class="warning ${cls}"><strong>${title}</strong><span>${text}</span></div>`;
+  }).join('');
+}
+
+async function loadAnalytics() {
+  const res = await fetch('/api/analytics', { cache: 'no-store' });
+  const data = await res.json();
+  const c = chartColors();
+  const labels = data.nodes.map(n => n.id.toUpperCase());
+
+  document.getElementById('updatedAt').textContent = `Updated ${data.time}`;
+  document.getElementById('balanceScore').textContent = data.load_balance_score;
+  document.getElementById('headroom').textContent = `${data.scalability_headroom_pct}%`;
+  document.getElementById('freeCpu').textContent = data.cluster.free_capacity.CPU;
+  document.getElementById('freeBw').textContent = data.cluster.free_capacity.BW;
+  document.getElementById('smallCap').textContent = data.additional_services.small;
+  document.getElementById('mediumCap').textContent = data.additional_services.medium;
+  document.getElementById('largeCap').textContent = data.additional_services.large;
+  const avgUsage = Math.round((data.cluster.usage_pct.CPU + data.cluster.usage_pct.MEM + data.cluster.usage_pct.DISK + data.cluster.usage_pct.BW) / 4);
+  document.getElementById('usedTotal').textContent = `${avgUsage}%`;
+
+  updateChart(charts.cpu, labels, [data.nodes.map(n => n.cpu_pct)]);
+  updateChart(charts.mem, labels, [data.nodes.map(n => n.mem_pct)]);
+  updateChart(charts.bw, labels, [data.nodes.map(n => n.bw_pct)]);
+  updateChart(charts.placement, labels, [data.nodes.map(n => n.placements)]);
+  updateChart(charts.latency, data.latency_timeline.map(x => x.time || x.id), [data.latency_timeline.map(x => x.latency)]);
+  updateChart(charts.cluster, ['CPU', 'MEM', 'DISK', 'BW'], [[
+    data.cluster.used_capacity.CPU,
+    data.cluster.used_capacity.MEM,
+    data.cluster.used_capacity.DISK,
+    data.cluster.used_capacity.BW,
+  ], [
+    data.cluster.free_capacity.CPU,
+    data.cluster.free_capacity.MEM,
+    data.cluster.free_capacity.DISK,
+    data.cluster.free_capacity.BW,
+  ]]);
+  updateChart(charts.remaining, labels, [data.nodes.map(n => Math.min(100 - n.cpu_pct, 100 - n.mem_pct, 100 - n.disk_pct, 100 - n.bw_pct))]);
+
+  document.getElementById('nodeTable').innerHTML = data.nodes.map(n => `
+    <tr>
+      <td>${n.id.toUpperCase()}</td>
+      <td>${n.cpu_pct}%</td>
+      <td>${n.mem_pct}%</td>
+      <td>${n.disk_pct}%</td>
+      <td>${n.bw_pct}%</td>
+      <td>${n.placements}</td>
+      <td>${n.services}</td>
+      <td>${n.avg_latency} ms</td>
+    </tr>
+  `).join('');
+  renderWarnings(data.warnings);
+}
+
+initCharts();
+loadAnalytics();
+setInterval(loadAnalytics, 3000);
+window.addEventListener('storage', setThemeFromStorage);
+</script>
+</body>
+</html>

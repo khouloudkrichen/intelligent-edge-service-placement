@@ -180,7 +180,7 @@ body::before{{content:'';position:fixed;inset:0;background-image:linear-gradient
         <div class="kpi"><div class="kpi-val" id="kpiTotal" style="color:#7dd3fc">0</div><div class="kpi-lbl">Total</div></div>
         <div class="kpi"><div class="kpi-val" id="kpiSuccess" style="color:#22d3ee">0</div><div class="kpi-lbl">Succès</div></div>
         <div class="kpi"><div class="kpi-val" id="kpiFail" style="color:#f87171">0</div><div class="kpi-lbl">Échecs</div></div>
-        <div class="kpi"><div class="kpi-val" id="kpiPlacementLatest" style="color:#fbbf24">--</div><div class="kpi-lbl">Placement Time</div><div class="kpi-sub" id="kpiPlacementAvg">Average: --</div></div>
+        <div class="kpi"><div class="kpi-val" id="kpiPlacementLatest" style="color:#fbbf24">--</div><div class="kpi-lbl">Processing Time</div><div class="kpi-sub" id="kpiPlacementAvg">Average: --</div></div>
       </div>
     </div>
 
@@ -262,6 +262,7 @@ let latestCommandIntentIds = [];
 let latestCommandPlacements = [];
 let latestHighlightedNodeIds = [];
 let latestCommandTotalTimeMs = 0;
+let latestCommandTiming = {{}};
 let hoverPlacedNodeIds = [];
 
 function toggleRecording() {{
@@ -359,6 +360,7 @@ function updateLatestCommandFromHistory(placements, msg = null) {{
     latestCommandPlacements = [];
     latestHighlightedNodeIds = [];
     latestCommandTotalTimeMs = 0;
+    latestCommandTiming = {{}};
     return;
   }}
 
@@ -374,6 +376,7 @@ function updateLatestCommandFromHistory(placements, msg = null) {{
   latestCommandIntentIds = commandGroup.map(p => p.id).filter(Boolean);
   latestCommandPlacements = [];
   latestCommandTotalTimeMs = msg?.total_time_ms || first.command_total_time_ms || 0;
+  latestCommandTiming = msg?.timing || first.timing || {{}};
 
   commandGroup.forEach(p => {{
     if (!p?.success) return;
@@ -389,6 +392,7 @@ function updateLatestCommandFromHistory(placements, msg = null) {{
         latency: p.lat,
         time_ms: p.time_ms || p.placement_time_ms || 0,
         command_total_time_ms: p.command_total_time_ms || latestCommandTotalTimeMs,
+        timing: p.timing || latestCommandTiming,
         status: (p.status || p.source || 'PLACED').toString().toUpperCase()
       }});
     }});
@@ -408,6 +412,7 @@ function clearLatestCommandHighlight() {{
   latestCommandPlacements = [];
   latestHighlightedNodeIds = [];
   latestCommandTotalTimeMs = 0;
+  latestCommandTiming = {{}};
   hoverPlacedNodeIds = [];
   applyNodeHighlights();
 }}
@@ -498,6 +503,7 @@ ws.onclose = () => {{
 const barColor = p => p>=80?'#f87171':p>=50?'#f59e0b':'#22d3ee';
 const pct = (u,c) => c>0?Math.min(100,Math.round(u/c*100)):0;
 const escapeHtml = (value = '') => String(value).replace(/[&<>"']/g, c => ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c]));
+const formatSeconds = ms => `${{(Number(ms || 0) / 1000).toFixed(3)}} s`;
 
 function renderNodes(nodes) {{
   const grid = document.getElementById('nodeGrid');
@@ -518,7 +524,8 @@ function renderNodes(nodes) {{
             <div style="margin-top:5px">
               <b>${{escapeHtml(d.intention_id)}}</b> · ${{escapeHtml(d.status)}} · ${{d.latency ?? '?'}}ms<br>
               <span>${{escapeHtml((d.services || []).join(', ') || 'services n/a')}}</span><br>
-              <span style="color:#fbbf24">⚡ ${{d.time_ms || '?'}} ms</span>
+              <span style="color:#fbbf24">⚡ Placement: ${{d.time_ms ? formatSeconds(d.time_ms) : '?'}}</span><br>
+              <span style="color:var(--a)">Total: ${{d.command_total_time_ms ? formatSeconds(d.command_total_time_ms) : '?'}}</span>
             </div>`).join('')
         }}</div>`
       : `<div class="node-intents-pop"><strong>Intentions placées</strong><br>${{escapeHtml(intentsText)}}</div>`;
@@ -567,6 +574,11 @@ function renderLog(placements) {{
     const intentTime = p.time_ms || p.placement_time_ms;
     const showCommandTotal = index === 0 || commandKeyFromPlacement(placements[index - 1]) !== commandKey;
     const commandTotal = p.command_total_time_ms;
+    const timing = p.timing || {{}};
+    const classificationTime = p.classification_time_ms || timing.classification_time_ms;
+    const algorithmTime = p.placement_algorithm_time_ms || timing.placement_algorithm_time_ms;
+    const neo4jTime = p.neo4j_time_ms || timing.neo4j_time_ms;
+    const websocketTime = p.websocket_prepare_time_ms || timing.websocket_prepare_time_ms;
     return `
     <div class="log-item ${{p.success ? 'ok' : 'fail'}}${{latestClass}}"${{nodeAttr}}>
       <div class="log-icon">${{p.success ? '✅' : '❌'}}</div>
@@ -577,8 +589,9 @@ function renderLog(placements) {{
           ? `<div class="log-detail">${{(p.status || p.source || 'PLACED').toUpperCase()}} → ${{targetText}} (${{p.lat ?? '?'}}ms)</div>`
           : `<div class="log-fail-txt">ÉCHEC — ${{(p.source || 'failed').toUpperCase()}}</div>`
         }}
-        ${{intentTime ? `<div class="log-time-metric">⚡ Intention placement time: ${{intentTime}} ms</div>` : ''}}
-        ${{showCommandTotal && commandTotal ? `<div class="log-command-time">Total placement time: ${{commandTotal}} ms</div>` : ''}}
+        ${{intentTime ? `<div class="log-time-metric">⚡ Per intention: ${{formatSeconds(intentTime)}}</div>` : ''}}
+        ${{showCommandTotal && commandTotal ? `<div class="log-command-time">Total processing time: ${{formatSeconds(commandTotal)}}</div>` : ''}}
+        ${{showCommandTotal && (classificationTime || algorithmTime || neo4jTime || websocketTime) ? `<div class="log-command-time">Classification: ${{formatSeconds(classificationTime)}} · Placement: ${{formatSeconds(algorithmTime)}} · Neo4j: ${{formatSeconds(neo4jTime)}} · WS prep: ${{formatSeconds(websocketTime)}}</div>` : ''}}
       </div>
       <div class="log-time">${{p.time || ''}}</div>
     </div>`;
@@ -611,12 +624,12 @@ function updatePlacementTimeStats(placements) {{
   }});
   if (!commandTimes.length) {{
     latestEl.textContent = '--';
-    avgEl.textContent = 'Average: --';
+    avgEl.textContent = 'Average processing: --';
     return;
   }}
-  latestEl.textContent = `⚡ ${{commandTimes[0]}} ms`;
-  const avg = Math.round(commandTimes.reduce((a,b) => a + b, 0) / commandTimes.length);
-  avgEl.textContent = `Average: ${{avg}} ms`;
+  latestEl.textContent = `⚡ ${{formatSeconds(commandTimes[0])}}`;
+  const avg = commandTimes.reduce((a,b) => a + b, 0) / commandTimes.length;
+  avgEl.textContent = `Average processing: ${{formatSeconds(avg)}}`;
 }}
 
 function applyTheme(theme) {{
@@ -794,8 +807,13 @@ function showPanel(n) {{
   }} else {{
     const sc = n.success ? '#22d3ee' : '#f87171';
     const icon = n.success ? '✅' : '❌';
-    const placementTime = n.placement_time_ms ? `⚡ ${{n.placement_time_ms}} ms` : '—';
-    const commandTime = n.command_total_time_ms ? `Total command: ${{n.command_total_time_ms}} ms` : '';
+    const timing = n.timing || {{}};
+    const placementTime = n.placement_time_ms ? `⚡ Placement: ${{formatSeconds(n.placement_time_ms)}}` : '—';
+    const commandTime = n.command_total_time_ms ? `Total processing: ${{formatSeconds(n.command_total_time_ms)}}` : '';
+    const classificationTime = n.classification_time_ms || timing.classification_time_ms;
+    const algorithmTime = n.placement_algorithm_time_ms || timing.placement_algorithm_time_ms;
+    const neo4jTime = n.neo4j_time_ms || timing.neo4j_time_ms;
+    const websocketTime = n.websocket_prepare_time_ms || timing.websocket_prepare_time_ms;
     pcontent.innerHTML = `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--b)">
         <div style="width:36px;height:36px;border-radius:8px;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.2);display:flex;align-items:center;justify-content:center;font-size:18px">🎯</div>
@@ -822,9 +840,10 @@ function showPanel(n) {{
       </div>
 
       <div style="background:var(--s2);border-radius:6px;padding:10px;border:1px solid var(--b);margin-bottom:10px">
-        <div style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:9px;color:var(--t2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em">Placement Time</div>
+        <div style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:9px;color:var(--t2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em">Processing Time</div>
         <div style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:12px;color:#fbbf24">${{placementTime}}</div>
         <div style="font-size:9px;color:var(--t3);margin-top:3px">${{commandTime}}</div>
+        <div style="font-size:9px;color:var(--t3);margin-top:3px">Classification: ${{formatSeconds(classificationTime)}} · Algorithm: ${{formatSeconds(algorithmTime)}} · Neo4j: ${{formatSeconds(neo4jTime)}} · WS prep: ${{formatSeconds(websocketTime)}}</div>
       </div>
 
       <div style="background:var(--s2);border-radius:6px;padding:10px;border:1px solid var(--b)">
@@ -943,7 +962,7 @@ function runSimulation() {{
 
       const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
       ctx.font = '9px JetBrains Mono'; ctx.fillStyle = cssVar('--muted');
-      const edgeLabel = e.placement_time_ms ? `${{e.lat || '?'}}ms · ⚡${{e.placement_time_ms}}ms` : (e.lat ? e.lat+'ms' : '');
+      const edgeLabel = e.placement_time_ms ? `${{e.lat || '?'}}ms · ⚡${{formatSeconds(e.placement_time_ms)}}` : (e.lat ? e.lat+'ms' : '');
       ctx.textAlign = 'center'; ctx.fillText(edgeLabel, mx, my-4);
     }});
 

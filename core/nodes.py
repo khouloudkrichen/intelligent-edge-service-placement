@@ -20,15 +20,18 @@ state = {
     }
 }
 
+_NODE_STATE_BY_ID: dict[str, dict] = {}
+
 
 def init_nodes(reset_load: bool = True):
     """Initialise (ou réinitialise) la liste des nœuds dans state."""
     if not reset_load and state["nodes"]:
         return
     state["nodes"] = []
+    _NODE_STATE_BY_ID.clear()
     for nd in nodes:
         lats = latency_map.get(nd["id"], [50])
-        state["nodes"].append({
+        node_state = {
             "id":        nd["id"],
             "type":      nd["type"],
             "cpu":       nd["capacity"]["CPU"],
@@ -44,11 +47,13 @@ def init_nodes(reset_load: bool = True):
             "lat_max":   round(max(lats), 1),
             "intents":   [],
             "active":    False,
-        })
+        }
+        state["nodes"].append(node_state)
+        _NODE_STATE_BY_ID[nd["id"]] = node_state
 
 
 def get_node_state(node_id: str) -> dict | None:
-    return next((n for n in state["nodes"] if n["id"] == node_id), None)
+    return _NODE_STATE_BY_ID.get(node_id)
 
 
 def get_available(node_id: str) -> dict | None:

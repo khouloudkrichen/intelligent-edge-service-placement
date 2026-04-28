@@ -205,8 +205,8 @@ body {
         <div class="kpi"><div class="kpi-value" id="headroom">0%</div><div class="kpi-label">Scalability headroom</div></div>
         <div class="kpi"><div class="kpi-value" id="freeCpu">0</div><div class="kpi-label">Free CPU cores</div></div>
         <div class="kpi"><div class="kpi-value" id="freeBw">0</div><div class="kpi-label">Free bandwidth Mbps</div></div>
-        <div class="kpi"><div class="kpi-value" id="latestPlacementTime">0 ms</div><div class="kpi-label">Latest placement time</div></div>
-        <div class="kpi"><div class="kpi-value" id="avgPlacementTime">0 ms</div><div class="kpi-label">Avg placement time</div></div>
+        <div class="kpi"><div class="kpi-value" id="latestPlacementTime">0.000 s</div><div class="kpi-label">Latest processing time</div></div>
+        <div class="kpi"><div class="kpi-value" id="avgPlacementTime">0.000 s</div><div class="kpi-label">Avg processing time</div></div>
         <div class="kpi"><div class="kpi-value" id="fastestNode">--</div><div class="kpi-label">Fastest node</div></div>
         <div class="kpi"><div class="kpi-value" id="slowestNode">--</div><div class="kpi-label">Slowest node</div></div>
       </div>
@@ -217,8 +217,8 @@ body {
     <div class="analytics-card"><div class="card-title">Bandwidth Usage Per Node</div><div class="chart-wrap"><canvas id="bwChart"></canvas></div></div>
     <div class="analytics-card"><div class="card-title">Placement Distribution</div><div class="chart-wrap"><canvas id="placementChart"></canvas></div></div>
     <div class="analytics-card wide"><div class="card-title">Average Latency Over Placements</div><div class="chart-wrap"><canvas id="latencyChart"></canvas></div></div>
-    <div class="analytics-card wide"><div class="card-title">Placement Time History</div><div class="chart-wrap"><canvas id="placementTimeChart"></canvas></div></div>
-    <div class="analytics-card"><div class="card-title">Avg Placement Time Per Node</div><div class="chart-wrap"><canvas id="nodeTimeChart"></canvas></div></div>
+    <div class="analytics-card wide"><div class="card-title">Processing Time History</div><div class="chart-wrap"><canvas id="placementTimeChart"></canvas></div></div>
+    <div class="analytics-card"><div class="card-title">Avg Per-Intention Time Per Node</div><div class="chart-wrap"><canvas id="nodeTimeChart"></canvas></div></div>
     <div class="analytics-card wide"><div class="card-title">Cluster Resource Usage Vs Capacity</div><div class="chart-wrap"><canvas id="clusterChart"></canvas></div></div>
     <div class="analytics-card"><div class="card-title">Capacity Remaining Per Node</div><div class="chart-wrap"><canvas id="remainingChart"></canvas></div></div>
 
@@ -240,7 +240,7 @@ body {
     <div class="analytics-card full">
       <div class="card-title">Node Analytics Table</div>
       <table class="node-table">
-        <thead><tr><th>Node</th><th>CPU</th><th>MEM</th><th>DISK</th><th>BW</th><th>Intentions</th><th>Services</th><th>Avg Latency</th><th>Avg Placement Time</th></tr></thead>
+        <thead><tr><th>Node</th><th>CPU</th><th>MEM</th><th>DISK</th><th>BW</th><th>Intentions</th><th>Services</th><th>Avg Latency</th><th>Avg Per-Intent</th><th>Avg Processing</th></tr></thead>
         <tbody id="nodeTable"></tbody>
       </table>
     </div>
@@ -309,14 +309,14 @@ function initCharts() {
     tension: .35,
   }]);
   charts.placementTime = makeChart('placementTimeChart', 'line', [], [{
-    label: 'Placement time ms',
+    label: 'Processing time s',
     data: [],
     fill: true,
     borderColor: c.warn,
     backgroundColor: 'rgba(251, 191, 36, 0.12)',
     tension: .35,
   }]);
-  charts.nodeTime = makeChart('nodeTimeChart', 'bar', [], [{ label: 'Avg ms', data: [], backgroundColor: c.warn }]);
+  charts.nodeTime = makeChart('nodeTimeChart', 'bar', [], [{ label: 'Avg s', data: [], backgroundColor: c.warn }]);
   charts.cluster = makeChart('clusterChart', 'bar', ['CPU', 'MEM', 'DISK', 'BW'], [
     { label: 'Used', data: [], backgroundColor: c.accent },
     { label: 'Free', data: [], backgroundColor: c.success },
@@ -351,16 +351,18 @@ async function loadAnalytics() {
   const data = await res.json();
   const c = chartColors();
   const labels = data.nodes.map(n => n.id.toUpperCase());
+  const seconds = ms => Number((Number(ms || 0) / 1000).toFixed(3));
+  const formatSeconds = ms => `${seconds(ms).toFixed(3)} s`;
 
   document.getElementById('updatedAt').textContent = `Updated ${data.time}`;
   document.getElementById('balanceScore').textContent = data.load_balance_score;
   document.getElementById('headroom').textContent = `${data.scalability_headroom_pct}%`;
   document.getElementById('freeCpu').textContent = data.cluster.free_capacity.CPU;
   document.getElementById('freeBw').textContent = data.cluster.free_capacity.BW;
-  document.getElementById('latestPlacementTime').textContent = `${data.latest_placement_time_ms || 0} ms`;
-  document.getElementById('avgPlacementTime').textContent = `${data.avg_placement_time_ms || 0} ms`;
-  document.getElementById('fastestNode').textContent = data.fastest_node ? `${data.fastest_node.id.toUpperCase()} (${data.fastest_node.avg_placement_time_ms}ms)` : '--';
-  document.getElementById('slowestNode').textContent = data.slowest_node ? `${data.slowest_node.id.toUpperCase()} (${data.slowest_node.avg_placement_time_ms}ms)` : '--';
+  document.getElementById('latestPlacementTime').textContent = formatSeconds(data.latest_processing_time_ms ?? data.latest_placement_time_ms);
+  document.getElementById('avgPlacementTime').textContent = formatSeconds(data.avg_processing_time_ms ?? data.avg_placement_time_ms);
+  document.getElementById('fastestNode').textContent = data.fastest_node ? `${data.fastest_node.id.toUpperCase()} (${formatSeconds(data.fastest_node.avg_placement_time_ms)})` : '--';
+  document.getElementById('slowestNode').textContent = data.slowest_node ? `${data.slowest_node.id.toUpperCase()} (${formatSeconds(data.slowest_node.avg_placement_time_ms)})` : '--';
   document.getElementById('smallCap').textContent = data.additional_services.small;
   document.getElementById('mediumCap').textContent = data.additional_services.medium;
   document.getElementById('largeCap').textContent = data.additional_services.large;
@@ -372,8 +374,9 @@ async function loadAnalytics() {
   updateChart(charts.bw, labels, [data.nodes.map(n => n.bw_pct)]);
   updateChart(charts.placement, labels, [data.nodes.map(n => n.placements)]);
   updateChart(charts.latency, data.latency_timeline.map(x => x.time || x.id), [data.latency_timeline.map(x => x.latency)]);
-  updateChart(charts.placementTime, data.placement_time_history.map(x => x.time || x.command_id), [data.placement_time_history.map(x => x.total_time_ms)]);
-  updateChart(charts.nodeTime, labels, [data.nodes.map(n => n.avg_placement_time_ms || 0)]);
+  const processingHistory = data.processing_time_history || data.placement_time_history || [];
+  updateChart(charts.placementTime, processingHistory.map(x => x.time || x.command_id), [processingHistory.map(x => seconds(x.command_total_time_ms ?? x.total_time_ms))]);
+  updateChart(charts.nodeTime, labels, [data.nodes.map(n => seconds(n.avg_placement_time_ms))]);
   updateChart(charts.cluster, ['CPU', 'MEM', 'DISK', 'BW'], [[
     data.cluster.used_capacity.CPU,
     data.cluster.used_capacity.MEM,
@@ -397,7 +400,8 @@ async function loadAnalytics() {
       <td>${n.placements}</td>
       <td>${n.services}</td>
       <td>${n.avg_latency} ms</td>
-      <td>${n.avg_placement_time_ms || 0} ms</td>
+      <td>${formatSeconds(n.avg_placement_time_ms)}</td>
+      <td>${formatSeconds(n.avg_processing_time_ms)}</td>
     </tr>
   `).join('');
   renderWarnings(data.warnings);

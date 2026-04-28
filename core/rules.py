@@ -1,15 +1,16 @@
 # core/rules.py - strict placement validation and workload-aware scoring
 
-from data.dataset import nodes, latency_map, NODES_BY_ID
+from data.dataset import NODE_AVG_LATENCY, RESOURCE_KEYS, nodes, NODES_BY_ID
 from core.nodes import get_node_state
 
 MIN_FREE_PCT = 20
 
 SCORE_WEIGHTS = {
-    "headroom": 0.40,
-    "fit": 0.30,
-    "lat": 0.20,
-    "type": 0.10,
+    "latency": 0.35,
+    "available": 0.25,
+    "load_balance": 0.25,
+    "fit": 0.10,
+    "type": 0.05,
 }
 
 
@@ -42,8 +43,7 @@ def get_free_resources(node_id: str) -> dict | None:
         "MEM": round(free["MEM"] / cap["MEM"] * 100) if cap["MEM"] else 0,
         "BW": round(free["BW"] / cap["BW"] * 100) if cap["BW"] else 0,
     }
-    lats = latency_map.get(node_id, [50])
-    avg_lat = round(sum(lats) / len(lats), 1)
+    avg_lat = NODE_AVG_LATENCY.get(node_id, 50)
     return {
         "node_id": node_id,
         "node_type": nd_s["type"],
@@ -54,37 +54,37 @@ def get_free_resources(node_id: str) -> dict | None:
     }
 
 
+def hard_capacity_rejection(node_info: dict, required: dict) -> str | None:
+    free = node_info["free"]
+    for resource in RESOURCE_KEYS:
+        need = required.get(resource, 0)
+        if free.get(resource, 0) < need:
+            return f"{resource} insufficient ({free.get(resource, 0)} < {need})"
+    return None
+
+
 def check_rule(node_info: dict, required: dict, qos_latency: float) -> tuple[bool, str]:
     free = node_info["free"]
     cap = node_info["cap"]
     lat = node_info["lat"]
 
     req_cpu = required.get("CPU", 0)
-    req_mem = required.get("MEM", 0)
-    req_disk = required.get("DISK", 0)
-    req_bw = required.get("BW", 0)
-
-    if free["CPU"] < req_cpu:
-        return False, f"CPU insufficient ({free['CPU']} < {req_cpu})"
+    hard_reason = hard_capacity_rejection(node_info, required)
+    if hard_reason:
+        return False, hard_reason
 
     cpu_after = free["CPU"] - req_cpu
     cpu_min_free = round(cap["CPU"] * MIN_FREE_PCT / 100, 1)
     if cpu_after < cpu_min_free:
         return False, f"CPU margin too low after placement ({cpu_after} < {cpu_min_free})"
 
-    if free["MEM"] < req_mem:
-        return False, f"MEM insufficient ({free['MEM']} < {req_mem})"
-    if free["DISK"] < req_disk:
-        return False, f"DISK insufficient ({free['DISK']} < {req_disk})"
-    if free["BW"] < req_bw:
-        return False, f"BW insufficient ({free['BW']} < {req_bw})"
     if lat > qos_latency:
         return False, f"Latency too high ({lat}ms > {qos_latency}ms)"
 
     return True, "OK"
 
 
-def compute_score(node_info: dict, required: dict) -> float:
+def compute_score(node_info: dict, required: dict, qos_latency: float) -> float:
     """Rank eligible nodes.
 
     Light requests prefer the smallest valid node with enough headroom.
@@ -93,6 +93,7 @@ def compute_score(node_info: dict, required: dict) -> float:
     lat = node_info["lat"]
     cap = node_info["cap"]
     free = node_info["free"]
+    state_node = get_node_state(node_info["node_id"]) or {}
     size = workload_size(required)
 
     req_cpu = required.get("CPU", 0)
@@ -102,7 +103,15 @@ def compute_score(node_info: dict, required: dict) -> float:
     cpu_after_pct = ((free["CPU"] - req_cpu) / cap["CPU"] * 100) if cap["CPU"] else 0
     mem_after_pct = ((free["MEM"] - req_mem) / cap["MEM"] * 100) if cap["MEM"] else 0
     bw_after_pct = ((free["BW"] - req_bw) / cap["BW"] * 100) if cap["BW"] else 0
-    headroom_score = max(0, min(100, (cpu_after_pct + mem_after_pct + bw_after_pct) / 3))
+    available_score = max(0, min(100, (cpu_after_pct + mem_after_pct + bw_after_pct) / 3))
+
+    cpu_after_used_pct = ((state_node.get("cpu_used", 0) + req_cpu) / cap["CPU"] * 100) if cap["CPU"] else 100
+    mem_after_used_pct = ((state_node.get("mem_used", 0) + req_mem) / cap["MEM"] * 100) if cap["MEM"] else 100
+    bw_after_used_pct = ((state_node.get("bw_used", 0) + req_bw) / cap["BW"] * 100) if cap["BW"] else 100
+    projected_load = (cpu_after_used_pct + mem_after_used_pct + bw_after_used_pct) / 3
+    load_balance_score = max(0, min(100, 100 - projected_load))
+
+    latency_score = max(0, min(100, 100 - (lat / qos_latency * 100))) if qos_latency else max(0, 100 - lat)
 
     demand_ratio = max(
         req_cpu / cap["CPU"] if cap["CPU"] else 1,
@@ -116,7 +125,6 @@ def compute_score(node_info: dict, required: dict) -> float:
     else:
         fit_score = max(0, 100 - abs(demand_ratio - 0.50) * 110)
 
-    lat_score = max(0, 100 - lat)
     type_score = 100
     if size == "light" and node_info["node_type"] == "gateway":
         type_score = 110
@@ -126,9 +134,10 @@ def compute_score(node_info: dict, required: dict) -> float:
         type_score = 25
 
     score = (
-        headroom_score * SCORE_WEIGHTS["headroom"]
+        latency_score * SCORE_WEIGHTS["latency"]
+        + available_score * SCORE_WEIGHTS["available"]
+        + load_balance_score * SCORE_WEIGHTS["load_balance"]
         + fit_score * SCORE_WEIGHTS["fit"]
-        + lat_score * SCORE_WEIGHTS["lat"]
         + type_score * SCORE_WEIGHTS["type"]
     )
     return round(score, 2)
@@ -146,7 +155,7 @@ def apply_rules(required: dict, qos_latency: float) -> dict:
 
         ok, reason = check_rule(node_info, required, qos_latency)
         if ok:
-            score = compute_score(node_info, required)
+            score = compute_score(node_info, required, qos_latency)
             eligible.append({
                 "node_id": nd["id"],
                 "node_type": nd["type"],

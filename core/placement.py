@@ -1,8 +1,16 @@
 # core/placement.py - placement engine with graceful degradation
 
 import random
+import time
 
-from data.dataset import nodes, latency_map, SERVICES_BY_ID
+from data.dataset import (
+    INTENTION_REQUIREMENTS,
+    NODE_AVG_LATENCY,
+    SERVICE_REQUIREMENTS,
+    SERVICES_BY_ID,
+    nodes,
+    latency_map,
+)
 from core.nodes import get_node_state, get_available
 
 PLACED = "PLACED"
@@ -27,11 +35,18 @@ SERVICE_PRIORITY = {
 def total_resources(service_ids: list) -> dict:
     total = {"CPU": 0, "MEM": 0, "DISK": 0, "BW": 0}
     for sid in service_ids:
-        svc = SERVICES_BY_ID.get(sid)
-        if svc:
+        req = SERVICE_REQUIREMENTS.get(sid)
+        if req:
             for r in total:
-                total[r] += svc["resources"].get(r, 0)
+                total[r] += req.get(r, 0)
     return total
+
+
+def resources_for_intention(intent: dict) -> dict:
+    cached = INTENTION_REQUIREMENTS.get(intent.get("id"))
+    if cached:
+        return dict(cached)
+    return total_resources(intent.get("services", []))
 
 
 def service_priority(service_id: str) -> int:
@@ -73,10 +88,9 @@ def best_node_for(required: dict, qos_latency: float) -> tuple:
             continue
         if not all(avail.get(r, 0) >= required[r] for r in required):
             continue
-        lats = latency_map.get(nd["id"], [])
-        if not lats:
+        avg_lat = NODE_AVG_LATENCY.get(nd["id"])
+        if avg_lat is None:
             continue
-        avg_lat = sum(lats) / len(lats)
         if avg_lat <= qos_latency and avg_lat < best_lat:
             best_lat = avg_lat
             best_node = nd["id"]
@@ -113,12 +127,14 @@ def apply_service_to_node(node_id: str, req: dict):
 def select_node(required: dict, qos_latency: float, service_ids: list, intent_desc: str = "") -> list:
     from core.rules import apply_rules
 
+    scoring_start = time.perf_counter()
     ordered_services = priority_services(service_ids)
     print(f"\n   Placement request: services={service_ids}, priority={ordered_services}")
     print(f"   Required={required}, qos={qos_latency}ms")
 
     print("   Step 1 - strict grouped placement")
     strict_group = apply_rules(required, qos_latency)
+    print(f"   Timing scoring strict grouped: {round((time.perf_counter() - scoring_start) * 1000, 2)}ms")
     if strict_group["rule_fired"]:
         top = strict_group["eligible"][0]
         best = strict_group["best"]
@@ -130,7 +146,9 @@ def select_node(required: dict, qos_latency: float, service_ids: list, intent_de
         print(f"      {r['node_id'].upper()} -> {r['reason']}")
 
     print("   Step 2 - strict distributed placement")
+    distributed_start = time.perf_counter()
     distributed = _distributed_place(ordered_services, qos_latency, degraded=False)
+    print(f"   Timing scoring strict distributed: {round((time.perf_counter() - distributed_start) * 1000, 2)}ms")
     distributed_status = _overall_status(distributed)
     if distributed_status == PLACED:
         print(f"   Status {PLACED}: all services placed with strict distributed rules")
@@ -142,7 +160,9 @@ def select_node(required: dict, qos_latency: float, service_ids: list, intent_de
             print(f"      skipped {r['service']} -> {r.get('reason', 'no strict node')}")
 
     print("   Step 3 - degraded grouped placement")
+    degraded_group_start = time.perf_counter()
     degraded_group = _degraded_grouped(required, qos_latency)
+    print(f"   Timing scoring degraded grouped: {round((time.perf_counter() - degraded_group_start) * 1000, 2)}ms")
     if degraded_group:
         print(
             f"   Status {DEGRADED}: grouped placement accepted with tolerance "
@@ -151,7 +171,9 @@ def select_node(required: dict, qos_latency: float, service_ids: list, intent_de
         return [degraded_group]
 
     print("   Step 4 - degraded distributed placement")
+    degraded_dist_start = time.perf_counter()
     degraded_distributed = _distributed_place(ordered_services, qos_latency, degraded=True)
+    print(f"   Timing scoring degraded distributed: {round((time.perf_counter() - degraded_dist_start) * 1000, 2)}ms")
     degraded_status = _overall_status(degraded_distributed)
     if degraded_status in {PLACED, DEGRADED}:
         print(f"   Status {DEGRADED}: all services placed with degraded tolerance")
@@ -177,12 +199,12 @@ def _distributed_place(service_ids: list, qos_latency: float, degraded: bool) ->
     results = []
     reserved_by_node = {}
     for svc_id in service_ids:
-        svc = SERVICES_BY_ID.get(svc_id)
-        if not svc:
+        svc_req = SERVICE_REQUIREMENTS.get(svc_id)
+        if not svc_req:
             results.append(_result(svc_id, None, None, False, "unknown_service", FAILED, reason="Unknown service"))
             continue
 
-        req = {k: svc["resources"].get(k, 0) for k in ["CPU", "MEM", "DISK", "BW"]}
+        req = dict(svc_req)
         print(f"   Service {svc_id} priority={service_priority(svc_id)} required={req}")
         if degraded:
             chosen = _find_degraded_node(req, qos_latency, reserved_by_node)
@@ -268,8 +290,7 @@ def _find_degraded_node(required: dict, qos_latency: float, reserved_by_node: di
         if not (bw_ok or bw_degraded_ok):
             continue
 
-        lats = latency_map.get(nd["id"], [50])
-        lat = round(sum(lats) / len(lats), 1)
+        lat = NODE_AVG_LATENCY.get(nd["id"], 50)
         lat_ok = lat <= qos_latency
         lat_degraded_ok = lat <= qos_latency * DEGRADED_LATENCY_FACTOR
         if not (lat_ok or lat_degraded_ok):
@@ -328,11 +349,65 @@ def apply_placement(intent: dict, results: list):
             apply_service_to_node(r["node"], r.get("allocated") or total_resources(intent["services"]))
         else:
             svc_id = r.get("service")
-            svc = SERVICES_BY_ID.get(svc_id)
-            if svc:
-                svc_req = {k: svc["resources"].get(k, 0) for k in ["CPU", "MEM", "DISK", "BW"]}
+            svc_req = SERVICE_REQUIREMENTS.get(svc_id)
+            if svc_req:
                 apply_service_to_node(r["node"], r.get("allocated") or svc_req)
 
         nd = get_node_state(r["node"])
         if nd and intent["id"] not in nd["intents"]:
             nd["intents"].append(intent["id"])
+
+
+def place_intention_batch(intents: list[dict]) -> list[dict]:
+    """Plan and apply all intentions from one command in sequence.
+
+    Each returned item keeps the existing per-intention placement result shape,
+    so WebSocket/history/UI payloads stay compatible.
+    """
+    batch_start = time.perf_counter()
+    batch_results = []
+
+    print(f"\n   Batch placement: {len(intents)} intention(s)")
+    for intent in intents:
+        item_start = time.perf_counter()
+        required = resources_for_intention(intent)
+        print(
+            f"   Batch item {intent['id']}: cached resources="
+            f"CPU={required['CPU']} MEM={required['MEM']} "
+            f"DISK={required['DISK']} BW={required['BW']}"
+        )
+
+        scoring_start = time.perf_counter()
+        results = select_node(
+            required,
+            intent["QoS"]["latency"],
+            intent["services"],
+            intent_desc=intent["description"],
+        )
+        scoring_ms = round((time.perf_counter() - scoring_start) * 1000, 2)
+
+        placed = [r for r in results if r.get("node")]
+        placement_ms = 0.0
+        if placed:
+            placement_start = time.perf_counter()
+            apply_placement(intent, results)
+            placement_ms = round((time.perf_counter() - placement_start) * 1000, 2)
+
+        total_ms = round((time.perf_counter() - item_start) * 1000, 2)
+        print(
+            f"   Timing {intent['id']}: scoring={scoring_ms}ms, "
+            f"placement={placement_ms}ms, total={total_ms}ms"
+        )
+        batch_results.append({
+            "intent": intent,
+            "required": required,
+            "results": results,
+            "placed": placed,
+            "failed": [r for r in results if not r.get("node")],
+            "scoring_ms": scoring_ms,
+            "placement_ms": placement_ms,
+            "total_ms": total_ms,
+        })
+
+    print(f"   Timing batch placement total: {round((time.perf_counter() - batch_start) * 1000, 2)}ms")
+    return batch_results

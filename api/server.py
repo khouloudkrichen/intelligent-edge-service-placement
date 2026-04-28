@@ -107,12 +107,14 @@ def build_analytics_snapshot() -> dict:
     placement_counts = {n["id"]: 0 for n in nodes}
     latency_samples = {n["id"]: [] for n in nodes}
     placement_time_samples = {n["id"]: [] for n in nodes}
+    processing_time_samples = {n["id"]: [] for n in nodes}
 
     for item in placements:
         if not item.get("success"):
             continue
         services = item.get("services") or []
         item_time = item.get("time_ms") or item.get("placement_time_ms")
+        command_time = item.get("command_total_time_ms")
         if item.get("node"):
             node_id = item["node"]
             placement_counts[node_id] = placement_counts.get(node_id, 0) + 1
@@ -121,6 +123,8 @@ def build_analytics_snapshot() -> dict:
                 latency_samples.setdefault(node_id, []).append(item["lat"])
             if item_time is not None:
                 placement_time_samples.setdefault(node_id, []).append(item_time)
+            if command_time is not None:
+                processing_time_samples.setdefault(node_id, []).append(command_time)
             continue
         for node_id, _service in zip(item.get("nodes") or [], services):
             placement_counts[node_id] = placement_counts.get(node_id, 0) + 1
@@ -129,6 +133,8 @@ def build_analytics_snapshot() -> dict:
                 latency_samples.setdefault(node_id, []).append(item["lat"])
             if item_time is not None:
                 placement_time_samples.setdefault(node_id, []).append(item_time)
+            if command_time is not None:
+                processing_time_samples.setdefault(node_id, []).append(command_time)
 
     node_rows = []
     totals = {"CPU": 0, "MEM": 0, "DISK": 0, "BW": 0}
@@ -169,6 +175,7 @@ def build_analytics_snapshot() -> dict:
             "services": service_counts.get(n["id"], 0),
             "avg_latency": _avg(latency_samples.get(n["id"]) or [n.get("lat", 0)]),
             "avg_placement_time_ms": _avg(placement_time_samples.get(n["id"]) or []),
+            "avg_processing_time_ms": _avg(processing_time_samples.get(n["id"]) or []),
         })
 
     cpu_values = [n["cpu_pct"] for n in node_rows]
@@ -241,6 +248,12 @@ def build_analytics_snapshot() -> dict:
             "time": p.get("time", ""),
             "text": p.get("text", ""),
             "total_time_ms": total_time,
+            "command_total_time_ms": total_time,
+            "classification_time_ms": p.get("classification_time_ms"),
+            "placement_algorithm_time_ms": p.get("placement_algorithm_time_ms"),
+            "neo4j_time_ms": p.get("neo4j_time_ms"),
+            "websocket_prepare_time_ms": p.get("websocket_prepare_time_ms"),
+            "timing": p.get("timing") or {},
         })
     placement_time_history = placement_time_history[-30:]
     command_times = [p["total_time_ms"] for p in placement_time_history]
@@ -269,8 +282,11 @@ def build_analytics_snapshot() -> dict:
         "warnings": warnings,
         "latency_timeline": latency_timeline,
         "placement_time_history": placement_time_history,
+        "processing_time_history": placement_time_history,
         "latest_placement_time_ms": command_times[-1] if command_times else 0,
         "avg_placement_time_ms": _avg(command_times),
+        "latest_processing_time_ms": command_times[-1] if command_times else 0,
+        "avg_processing_time_ms": _avg(command_times),
         "fastest_node": fastest_node,
         "slowest_node": slowest_node,
         "history": analytics_history[-30:],
@@ -287,6 +303,8 @@ def record_analytics_snapshot():
         "avg_latency": _avg([n["avg_latency"] for n in snapshot["nodes"]]),
         "avg_placement_time_ms": snapshot["avg_placement_time_ms"],
         "latest_placement_time_ms": snapshot["latest_placement_time_ms"],
+        "avg_processing_time_ms": snapshot["avg_processing_time_ms"],
+        "latest_processing_time_ms": snapshot["latest_processing_time_ms"],
         "cpu_pct": snapshot["cluster"]["usage_pct"]["CPU"],
         "mem_pct": snapshot["cluster"]["usage_pct"]["MEM"],
         "bw_pct": snapshot["cluster"]["usage_pct"]["BW"],
@@ -480,22 +498,34 @@ async def get_graph(request: Request):
                 for rec in result:
                     iid, nid = rec["iid"], rec["nid"]
                     timing = placement_lookup.get((iid, nid), {})
+                    timing_payload = timing.get("timing") or {}
+                    placement_time_ms = timing.get("time_ms") or timing.get("placement_time_ms")
                     if iid not in nodes_map:
                         nodes_map[iid] = {
                             "id": iid, "label": iid, "type": "intention",
                             "desc": rec["desc"], "success": rec["success"],
                             "services": rec["services"],
                             "voice_text": rec["voice_text"], "ts": rec["ts"],
-                            "placement_time_ms": timing.get("time_ms") or timing.get("placement_time_ms"),
+                            "placement_time_ms": placement_time_ms,
                             "command_total_time_ms": timing.get("command_total_time_ms"),
+                            "classification_time_ms": timing.get("classification_time_ms"),
+                            "placement_algorithm_time_ms": timing.get("placement_algorithm_time_ms"),
+                            "neo4j_time_ms": timing.get("neo4j_time_ms"),
+                            "websocket_prepare_time_ms": timing.get("websocket_prepare_time_ms"),
+                            "timing": timing_payload,
                         }
                     edges.append({
                         "from": iid,
                         "to": nid,
                         "lat": rec["lat"],
                         "grouped": rec["grouped"],
-                        "placement_time_ms": timing.get("time_ms") or timing.get("placement_time_ms"),
+                        "placement_time_ms": placement_time_ms,
                         "command_total_time_ms": timing.get("command_total_time_ms"),
+                        "classification_time_ms": timing.get("classification_time_ms"),
+                        "placement_algorithm_time_ms": timing.get("placement_algorithm_time_ms"),
+                        "neo4j_time_ms": timing.get("neo4j_time_ms"),
+                        "websocket_prepare_time_ms": timing.get("websocket_prepare_time_ms"),
+                        "timing": timing_payload,
                     })
         except Exception as e:
             print(f"Graph Neo4j error: {e}")

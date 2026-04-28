@@ -9,7 +9,7 @@ import sounddevice as sd
 from config import SAMPLE_RATE, SERVER_PORT
 from core.detection import detect_multiple_intentions
 from core.nodes import state
-from core.placement import apply_placement, select_node, total_resources
+from core.placement import place_intention_batch
 from services.llm import ollama_call
 from services.neo4j_writer import write_voice_placement
 from services.transcription import transcribe
@@ -140,6 +140,10 @@ def _history_item(
     }
 
 
+def _seconds(ms: float) -> float:
+    return round((ms or 0.0) / 1000, 3)
+
+
 def process_text_command(text: str, lang: str, loop):
     command_start = time.perf_counter()
     text = (text or "").strip()
@@ -152,41 +156,89 @@ def process_text_command(text: str, lang: str, loop):
     command_id = f"cmd-{int(time.time() * 1000)}"
     loop.run_until_complete(broadcast({"type": "transcript", "text": text, "lang": lang}))
 
+    detection_start = time.perf_counter()
     detected = detect_multiple_intentions(text)
+    detection_ms = round((time.perf_counter() - detection_start) * 1000, 2)
+    print(f"Timing detection: {detection_ms}ms")
     if not detected:
         msg = "Aucune intention IBN détectée. Réessayez." if lang == "fr" else "No IBN intention detected. Please try again."
         print(f"\n{msg}")
+        print(f"Timing detection only: {detection_ms}ms")
+        websocket_prepare_start = time.perf_counter()
+        websocket_prepare_ms = 0.0
+        total_elapsed_ms = round((time.perf_counter() - command_start) * 1000, 2)
+        payload = {
+            "type": "no_intent",
+            "text": text,
+            "total_time_ms": total_elapsed_ms,
+            "command_total_time_ms": total_elapsed_ms,
+            "command_total_time_s": _seconds(total_elapsed_ms),
+            "classification_time_ms": detection_ms,
+            "classification_time_s": _seconds(detection_ms),
+            "placement_algorithm_time_ms": 0.0,
+            "placement_algorithm_time_s": 0.0,
+            "neo4j_time_ms": 0.0,
+            "neo4j_time_s": 0.0,
+            "websocket_prepare_time_ms": websocket_prepare_ms,
+            "websocket_prepare_time_s": _seconds(websocket_prepare_ms),
+            "timing": {
+                "command_total_time_ms": total_elapsed_ms,
+                "command_total_time_s": _seconds(total_elapsed_ms),
+                "classification_time_ms": detection_ms,
+                "classification_time_s": _seconds(detection_ms),
+                "placement_algorithm_time_ms": 0.0,
+                "placement_algorithm_time_s": 0.0,
+                "neo4j_time_ms": 0.0,
+                "neo4j_time_s": 0.0,
+                "websocket_prepare_time_ms": websocket_prepare_ms,
+                "websocket_prepare_time_s": _seconds(websocket_prepare_ms),
+            },
+        }
+        websocket_prepare_ms = round((time.perf_counter() - websocket_prepare_start) * 1000, 2)
+        total_elapsed_ms = round((time.perf_counter() - command_start) * 1000, 2)
+        payload.update({
+            "total_time_ms": total_elapsed_ms,
+            "command_total_time_ms": total_elapsed_ms,
+            "command_total_time_s": _seconds(total_elapsed_ms),
+            "websocket_prepare_time_ms": websocket_prepare_ms,
+            "websocket_prepare_time_s": _seconds(websocket_prepare_ms),
+        })
+        payload["timing"].update({
+            "command_total_time_ms": total_elapsed_ms,
+            "command_total_time_s": _seconds(total_elapsed_ms),
+            "websocket_prepare_time_ms": websocket_prepare_ms,
+            "websocket_prepare_time_s": _seconds(websocket_prepare_ms),
+        })
+        loop.run_until_complete(broadcast(payload))
         speak(msg, lang)
-        loop.run_until_complete(broadcast({"type": "no_intent", "text": text}))
         return
 
     print(f"\n{len(detected)} intention(s) detected:")
+    placement_batch_start = time.perf_counter()
+    batch_plan = place_intention_batch(detected)
+    placement_batch_ms = round((time.perf_counter() - placement_batch_start) * 1000, 2)
+    print(f"Timing placement batch: {placement_batch_ms}ms")
+
     command_history_items = []
     per_intention_times = []
-    for intent in detected:
-        intention_start = time.perf_counter()
+    neo4j_ms = 0.0
+    for planned in batch_plan:
+        intent = planned["intent"]
+        req = planned["required"]
+        results = planned["results"]
+        placed = planned["placed"]
+        failed = planned["failed"]
         print("\n" + "-" * 45)
         print(f"   {intent['id']} - {intent['description']}")
         print(f"   Services: {', '.join(intent['services'])}")
         state["last_intent"] = intent["id"]
 
-        req = total_resources(intent["services"])
         print(f"   Resources: CPU={req['CPU']} MEM={req['MEM']} BW={req['BW']}Mbps")
-
-        results = select_node(
-            req,
-            intent["QoS"]["latency"],
-            intent["services"],
-            intent_desc=intent["description"],
-        )
-        placed = [r for r in results if r.get("node")]
-        failed = [r for r in results if not r.get("node")]
         status = _placement_status(results)
 
         state["stats"]["total"] += 1
         if placed:
             state["stats"]["success"] += 1
-            apply_placement(intent, results)
             state["last_node"] = placed[0]["node"]
             if len(results) == 1 and results[0].get("grouped"):
                 print(f"   OK [{status}/{placed[0].get('source', '?')}] -> {placed[0]['node'].upper()} ({placed[0]['lat']}ms)")
@@ -204,7 +256,7 @@ def process_text_command(text: str, lang: str, loop):
             state["stats"]["fail"] += 1
             print("   FAILED: no node available")
 
-        intention_elapsed_ms = round((time.perf_counter() - intention_start) * 1000, 2)
+        intention_elapsed_ms = planned["total_ms"]
         history = _history_item(intent, results, text, command_id, intention_elapsed_ms)
         command_history_items.append(history)
         per_intention_times.append({
@@ -212,33 +264,72 @@ def process_text_command(text: str, lang: str, loop):
             "node": history.get("node") or (history.get("nodes") or [None])[0],
             "nodes": history.get("nodes") or [],
             "time_ms": intention_elapsed_ms,
+            "time_s": _seconds(intention_elapsed_ms),
             "latency_ms": history.get("lat"),
             "status": history.get("status", "FAILED"),
             "services": intent["services"],
         })
-        print(f"   Placement execution time: {intention_elapsed_ms}ms")
+        print(
+            f"   Placement execution time: {intention_elapsed_ms}ms "
+            f"(scoring={planned['scoring_ms']}ms, apply={planned['placement_ms']}ms)"
+        )
+        neo4j_start = time.perf_counter()
         write_voice_placement(intent, results, text)
+        neo4j_ms += (time.perf_counter() - neo4j_start) * 1000
 
-    total_elapsed_ms = round((time.perf_counter() - command_start) * 1000, 2)
+    neo4j_ms = round(neo4j_ms, 2)
     for history in command_history_items:
-        history["command_total_time_ms"] = total_elapsed_ms
+        history["classification_time_ms"] = detection_ms
+        history["classification_time_s"] = _seconds(detection_ms)
+        history["placement_algorithm_time_ms"] = placement_batch_ms
+        history["placement_algorithm_time_s"] = _seconds(placement_batch_ms)
+        history["neo4j_time_ms"] = neo4j_ms
+        history["neo4j_time_s"] = _seconds(neo4j_ms)
+        history["per_intention_time_s"] = _seconds(history.get("time_ms") or 0)
         state["placements"].insert(0, history)
 
     state["placements"] = state["placements"][:20]
-    record_analytics_snapshot()
 
-    response = generate_response(text, detected, state["placements"][:len(detected)], lang)
-    print(f"\nResponse: {response}")
-    print(f"Total command placement time: {total_elapsed_ms}ms")
-    speak(response, lang)
+    websocket_prepare_start = time.perf_counter()
+    total_elapsed_ms = round((time.perf_counter() - command_start) * 1000, 2)
+    websocket_prepare_ms = round((time.perf_counter() - websocket_prepare_start) * 1000, 2)
+    timing = {
+        "command_total_time_ms": total_elapsed_ms,
+        "command_total_time_s": _seconds(total_elapsed_ms),
+        "classification_time_ms": detection_ms,
+        "classification_time_s": _seconds(detection_ms),
+        "placement_algorithm_time_ms": placement_batch_ms,
+        "placement_algorithm_time_s": _seconds(placement_batch_ms),
+        "neo4j_time_ms": neo4j_ms,
+        "neo4j_time_s": _seconds(neo4j_ms),
+        "websocket_prepare_time_ms": websocket_prepare_ms,
+        "websocket_prepare_time_s": _seconds(websocket_prepare_ms),
+    }
+    for history in command_history_items:
+        history["command_total_time_ms"] = total_elapsed_ms
+        history["command_total_time_s"] = _seconds(total_elapsed_ms)
+        history["websocket_prepare_time_ms"] = websocket_prepare_ms
+        history["websocket_prepare_time_s"] = _seconds(websocket_prepare_ms)
+        history["timing"] = dict(timing)
 
-    loop.run_until_complete(broadcast({
+    payload = {
         "type": "placement_result",
         "command_id": command_id,
         "command_text": text,
         "intents": [i["id"] for i in detected],
         "intentions": [i["id"] for i in detected],
         "total_time_ms": total_elapsed_ms,
+        "command_total_time_ms": total_elapsed_ms,
+        "command_total_time_s": _seconds(total_elapsed_ms),
+        "classification_time_ms": detection_ms,
+        "classification_time_s": _seconds(detection_ms),
+        "placement_algorithm_time_ms": placement_batch_ms,
+        "placement_algorithm_time_s": _seconds(placement_batch_ms),
+        "neo4j_time_ms": neo4j_ms,
+        "neo4j_time_s": _seconds(neo4j_ms),
+        "websocket_prepare_time_ms": websocket_prepare_ms,
+        "websocket_prepare_time_s": _seconds(websocket_prepare_ms),
+        "timing": timing,
         "per_intention": per_intention_times,
         "intent": detected[0]["id"],
         "node": state["last_node"],
@@ -247,7 +338,40 @@ def process_text_command(text: str, lang: str, loop):
         "nodes": state["nodes"],
         "placements": state["placements"],
         "stats": state["stats"],
-    }))
+    }
+    websocket_prepare_ms = round((time.perf_counter() - websocket_prepare_start) * 1000, 2)
+    total_elapsed_ms = round((time.perf_counter() - command_start) * 1000, 2)
+    timing.update({
+        "command_total_time_ms": total_elapsed_ms,
+        "command_total_time_s": _seconds(total_elapsed_ms),
+        "websocket_prepare_time_ms": websocket_prepare_ms,
+        "websocket_prepare_time_s": _seconds(websocket_prepare_ms),
+    })
+    payload.update({
+        "total_time_ms": total_elapsed_ms,
+        "command_total_time_ms": total_elapsed_ms,
+        "command_total_time_s": _seconds(total_elapsed_ms),
+        "websocket_prepare_time_ms": websocket_prepare_ms,
+        "websocket_prepare_time_s": _seconds(websocket_prepare_ms),
+        "timing": timing,
+    })
+    for history in command_history_items:
+        history["command_total_time_ms"] = total_elapsed_ms
+        history["command_total_time_s"] = _seconds(total_elapsed_ms)
+        history["websocket_prepare_time_ms"] = websocket_prepare_ms
+        history["websocket_prepare_time_s"] = _seconds(websocket_prepare_ms)
+        history["timing"] = dict(timing)
+    record_analytics_snapshot()
+    print(
+        f"Timing summary: total={total_elapsed_ms}ms, classification={detection_ms}ms, "
+        f"placement_algorithm={placement_batch_ms}ms, neo4j={neo4j_ms}ms, "
+        f"websocket_prepare={websocket_prepare_ms}ms"
+    )
+    loop.run_until_complete(broadcast(payload))
+
+    response = generate_response(text, detected, state["placements"][:len(detected)], lang)
+    print(f"\nResponse: {response}")
+    speak(response, lang)
 
 
 def _wait_for_start_or_text():

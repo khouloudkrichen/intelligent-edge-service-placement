@@ -17,6 +17,65 @@ SERVICES_BY_ID   = {s["id"]: s for s in services}
 NODES_BY_ID      = {n["id"]: n for n in nodes}
 INTENTIONS_BY_ID = {i["id"]: i for i in intentions}
 
+RESOURCE_KEYS = ("CPU", "MEM", "DISK", "BW")
+
+
+def _service_resources(service: dict) -> dict:
+    return {key: service.get("resources", {}).get(key, 0) for key in RESOURCE_KEYS}
+
+
+SERVICE_REQUIREMENTS = {
+    service["id"]: _service_resources(service)
+    for service in services
+}
+
+
+def _sum_service_resources(service_ids: list[str]) -> dict:
+    total = {key: 0 for key in RESOURCE_KEYS}
+    for sid in service_ids:
+        req = SERVICE_REQUIREMENTS.get(sid)
+        if not req:
+            continue
+        for key in RESOURCE_KEYS:
+            total[key] += req[key]
+    return total
+
+
+INTENTION_REQUIREMENTS = {
+    intention["id"]: _sum_service_resources(intention.get("services", []))
+    for intention in intentions
+}
+
+INTENTION_SERVICE_REQUIREMENTS = {
+    intention["id"]: {
+        sid: SERVICE_REQUIREMENTS.get(sid, {key: 0 for key in RESOURCE_KEYS})
+        for sid in intention.get("services", [])
+    }
+    for intention in intentions
+}
+
+NODE_AVG_LATENCY = {
+    node["id"]: round(sum(latency_map.get(node["id"], [50])) / len(latency_map.get(node["id"], [50])), 1)
+    for node in nodes
+}
+
+
+def preload_dataset() -> dict:
+    """Return preloaded dataset indexes and warm resource caches at startup."""
+    return {
+        "intentions": intentions,
+        "services": services,
+        "nodes": nodes,
+        "latency": latency_map,
+        "services_by_id": SERVICES_BY_ID,
+        "nodes_by_id": NODES_BY_ID,
+        "intentions_by_id": INTENTIONS_BY_ID,
+        "service_requirements": SERVICE_REQUIREMENTS,
+        "intention_requirements": INTENTION_REQUIREMENTS,
+        "intention_service_requirements": INTENTION_SERVICE_REQUIREMENTS,
+        "node_avg_latency": NODE_AVG_LATENCY,
+    }
+
 print(f"✅ Dataset chargé : {len(nodes)} nœuds, {len(services)} services, {len(intentions)} intentions")
 
 # ── Mots français pour détection de langue ──────────────

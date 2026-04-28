@@ -12,7 +12,7 @@ cd Pfa_Placement_System
 python -m venv .venv
 
 3. Activate virtual environment
-.venv\Scripts\Activate.ps1
+.venv\Scripts\activate.bat
 
 If blocked:
 

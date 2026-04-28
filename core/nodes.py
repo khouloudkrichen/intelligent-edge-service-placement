@@ -13,6 +13,11 @@ state = {
     "last_intent":"",
     "last_node":  "",
     "stats": {"total": 0, "success": 0, "fail": 0},
+    "chat_history": {
+        "chatbot":   [],
+        "analytics": [],
+        "dashboard": [],
+    }
 }
 
 

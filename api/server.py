@@ -28,6 +28,34 @@ app.add_middleware(
 )
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
+@app.get("/chat/history/{section}")
+async def get_chat_history(section: str):
+    """Récupère l'historique d'une section."""
+    return state["chat_history"].get(section, [])
+
+
+@app.post("/chat/history/{section}")
+async def add_chat_message(section: str, request: Request):
+    """Ajoute un message à l'historique d'une section."""
+    body = await request.json()
+    if section not in state["chat_history"]:
+        state["chat_history"][section] = []
+    state["chat_history"][section].append({
+        "role":    body.get("role", "user"),
+        "content": body.get("content", ""),
+        "time":    strftime("%H:%M:%S"),
+    })
+    # Garder max 50 messages par section
+    state["chat_history"][section] = state["chat_history"][section][-50:]
+    return {"ok": True}
+
+
+@app.delete("/chat/history/{section}")
+async def clear_chat_history(section: str):
+    """Efface l'historique d'une section."""
+    state["chat_history"][section] = []
+    return {"ok": True}
+
 ws_clients: list[WebSocket] = []
 CHATBOT_HTML = BASE_DIR / "static" / "chatbot.html"
 ANALYTICS_HTML = BASE_DIR / "static" / "analytics.html"

@@ -762,6 +762,37 @@ textarea::placeholder { color: var(--text3); }
 let msgCount = 0;
 let ragCount = 0;
 
+// ── HISTORIQUE PERSISTANT ──────────────────────────────
+const SECTION = "chatbot";
+
+async function loadHistory() {
+    try {
+        const resp = await fetch(`/chat/history/${SECTION}`);
+        const msgs = await resp.json();
+        if (!msgs.length) return;
+        if (welcomeEl && welcomeEl.parentNode) welcomeEl.remove();
+        msgs.forEach(m => {
+            if (m.role === "user") {
+                addRow(m.content, "user");
+                msgCount++;
+            } else {
+                addRow(m.content, "bot", m.meta || {});
+                if (m.meta?.source === "rag" || m.meta?.source === "ollama") ragCount++;
+            }
+        });
+        updateStats();
+    } catch(e) { console.warn("loadHistory error:", e); }
+}
+
+async function saveMessage(role, content, meta = {}) {
+    try {
+        await fetch(`/chat/history/${SECTION}`, {
+            method:  "POST",
+            headers: {"Content-Type": "application/json"},
+            body:    JSON.stringify({role, content, meta}),
+        });
+    } catch(e) { console.warn("saveMessage error:", e); }
+}
 const messagesEl = document.getElementById("messages");
 const inputEl    = document.getElementById("input");
 const welcomeEl  = document.getElementById("welcome");
@@ -940,6 +971,8 @@ async function send() {
   if (!text) return;
 
   addRow(text, "user");
+  await saveMessage("user", text);   // ✅ AJOUT
+
   inputEl.value = "";
   inputEl.style.height = "auto";
   msgCount++;
@@ -952,33 +985,25 @@ async function send() {
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ message: text }),
     });
+
     const data = await res.json();
-    console.log("CHAT RESPONSE:", data);
-    console.log("SOURCE VALUE:", data.source, data.fallback_used);
     removeTyping();
 
-    if (data.source === "rag" || data.source === "ollama" || data.source === "ollama_only") {
-      ragCount++;
-    }
-    updateStats();
-
     addRow(data.answer, "bot", data);
+    await saveMessage("bot", data.answer, data); // ✅ AJOUT
 
   } catch (err) {
     removeTyping();
-    document.getElementById("server-status").textContent = "● OFFLINE";
-    document.getElementById("server-status").style.background = "rgba(248,113,113,0.12)";
-    document.getElementById("server-status").style.color = "var(--danger)";
-    document.getElementById("server-status").style.borderColor = "rgba(248,113,113,0.25)";
-    addRow("Connection error - make sure the dashboard server is running on http://127.0.0.1:8081", "bot");
+    addRow("Connection error...", "bot");
   }
 }
 
 // CLEAR
 function clearChat() {
-  messagesEl.innerHTML = "";
-  msgCount = 0; ragCount = 0;
-  updateStats();
+    fetch(`/chat/history/${SECTION}`, {method: "DELETE"}); 
+    messagesEl.innerHTML = "";
+    msgCount = 0; ragCount = 0;
+    updateStats();
 
   const w = document.createElement("div");
   w.className = "welcome";
@@ -1005,6 +1030,8 @@ inputEl.addEventListener("keydown", e => {
     send();
   }
 });
+// Charger l'historique au démarrage
+loadHistory();
 </script>
 </body>
 </html>

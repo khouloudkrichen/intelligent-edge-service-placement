@@ -78,23 +78,29 @@ def build_analytics_snapshot() -> dict:
     service_counts = {n["id"]: 0 for n in nodes}
     placement_counts = {n["id"]: 0 for n in nodes}
     latency_samples = {n["id"]: [] for n in nodes}
+    placement_time_samples = {n["id"]: [] for n in nodes}
 
     for item in placements:
         if not item.get("success"):
             continue
         services = item.get("services") or []
+        item_time = item.get("time_ms") or item.get("placement_time_ms")
         if item.get("node"):
             node_id = item["node"]
             placement_counts[node_id] = placement_counts.get(node_id, 0) + 1
             service_counts[node_id] = service_counts.get(node_id, 0) + len(services)
             if item.get("lat") is not None:
                 latency_samples.setdefault(node_id, []).append(item["lat"])
+            if item_time is not None:
+                placement_time_samples.setdefault(node_id, []).append(item_time)
             continue
         for node_id, _service in zip(item.get("nodes") or [], services):
             placement_counts[node_id] = placement_counts.get(node_id, 0) + 1
             service_counts[node_id] = service_counts.get(node_id, 0) + 1
             if item.get("lat") is not None:
                 latency_samples.setdefault(node_id, []).append(item["lat"])
+            if item_time is not None:
+                placement_time_samples.setdefault(node_id, []).append(item_time)
 
     node_rows = []
     totals = {"CPU": 0, "MEM": 0, "DISK": 0, "BW": 0}
@@ -134,6 +140,7 @@ def build_analytics_snapshot() -> dict:
             "placements": placement_counts.get(n["id"], 0),
             "services": service_counts.get(n["id"], 0),
             "avg_latency": _avg(latency_samples.get(n["id"]) or [n.get("lat", 0)]),
+            "avg_placement_time_ms": _avg(placement_time_samples.get(n["id"]) or []),
         })
 
     cpu_values = [n["cpu_pct"] for n in node_rows]
@@ -191,6 +198,33 @@ def build_analytics_snapshot() -> dict:
         if p.get("success") and p.get("lat") is not None
     ][-20:]
 
+    placement_time_history = []
+    seen_commands = set()
+    for p in reversed(placements):
+        total_time = p.get("command_total_time_ms")
+        if total_time is None:
+            continue
+        command_key = p.get("command_id") or f"{p.get('text', '')}:{p.get('time', '')}"
+        if command_key in seen_commands:
+            continue
+        seen_commands.add(command_key)
+        placement_time_history.append({
+            "command_id": command_key,
+            "time": p.get("time", ""),
+            "text": p.get("text", ""),
+            "total_time_ms": total_time,
+        })
+    placement_time_history = placement_time_history[-30:]
+    command_times = [p["total_time_ms"] for p in placement_time_history]
+
+    timed_nodes = [
+        {"id": n["id"], "avg_placement_time_ms": n["avg_placement_time_ms"]}
+        for n in node_rows
+        if n["avg_placement_time_ms"] > 0
+    ]
+    fastest_node = min(timed_nodes, key=lambda n: n["avg_placement_time_ms"], default=None)
+    slowest_node = max(timed_nodes, key=lambda n: n["avg_placement_time_ms"], default=None)
+
     snapshot = {
         "time": strftime("%H:%M:%S"),
         "nodes": node_rows,
@@ -206,6 +240,11 @@ def build_analytics_snapshot() -> dict:
         "additional_services": additional_capacity,
         "warnings": warnings,
         "latency_timeline": latency_timeline,
+        "placement_time_history": placement_time_history,
+        "latest_placement_time_ms": command_times[-1] if command_times else 0,
+        "avg_placement_time_ms": _avg(command_times),
+        "fastest_node": fastest_node,
+        "slowest_node": slowest_node,
         "history": analytics_history[-30:],
     }
     return snapshot
@@ -218,6 +257,8 @@ def record_analytics_snapshot():
         "load_balance_score": snapshot["load_balance_score"],
         "scalability_headroom_pct": snapshot["scalability_headroom_pct"],
         "avg_latency": _avg([n["avg_latency"] for n in snapshot["nodes"]]),
+        "avg_placement_time_ms": snapshot["avg_placement_time_ms"],
+        "latest_placement_time_ms": snapshot["latest_placement_time_ms"],
         "cpu_pct": snapshot["cluster"]["usage_pct"]["CPU"],
         "mem_pct": snapshot["cluster"]["usage_pct"]["MEM"],
         "bw_pct": snapshot["cluster"]["usage_pct"]["BW"],
@@ -281,7 +322,10 @@ async def websocket_endpoint(ws: WebSocket):
 
 @app.get("/")
 async def dashboard():
-    return HTMLResponse(DASHBOARD_HTML)
+    return HTMLResponse(
+        content=DASHBOARD_HTML,
+        media_type="text/html; charset=utf-8",
+    )
 
 
 @app.get("/chatbot")
@@ -365,7 +409,10 @@ async def get_state():
 async def get_graph(request: Request):
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
-        return HTMLResponse("<script>window.location.href='/#graph';</script>")
+        return HTMLResponse(
+            content="<script>window.location.href='/#graph';</script>",
+            media_type="text/html; charset=utf-8",
+        )
 
     live = {n["id"]: n for n in state["nodes"]}
     all_ibn = []
@@ -385,6 +432,12 @@ async def get_graph(request: Request):
         })
     nodes_map = {n["id"]: n for n in all_ibn}
     edges = []
+    placement_lookup = {}
+    for item in state.get("placements", []):
+        for node_id in ([item.get("node")] if item.get("node") else item.get("nodes") or []):
+            if not node_id:
+                continue
+            placement_lookup.setdefault((item.get("id"), node_id), item)
     if neo4j_driver:
         try:
             cypher = (
@@ -398,14 +451,24 @@ async def get_graph(request: Request):
                 result = session.run(cypher)
                 for rec in result:
                     iid, nid = rec["iid"], rec["nid"]
+                    timing = placement_lookup.get((iid, nid), {})
                     if iid not in nodes_map:
                         nodes_map[iid] = {
                             "id": iid, "label": iid, "type": "intention",
                             "desc": rec["desc"], "success": rec["success"],
                             "services": rec["services"],
-                            "voice_text": rec["voice_text"], "ts": rec["ts"]
+                            "voice_text": rec["voice_text"], "ts": rec["ts"],
+                            "placement_time_ms": timing.get("time_ms") or timing.get("placement_time_ms"),
+                            "command_total_time_ms": timing.get("command_total_time_ms"),
                         }
-                    edges.append({"from": iid, "to": nid, "lat": rec["lat"], "grouped": rec["grouped"]})
+                    edges.append({
+                        "from": iid,
+                        "to": nid,
+                        "lat": rec["lat"],
+                        "grouped": rec["grouped"],
+                        "placement_time_ms": timing.get("time_ms") or timing.get("placement_time_ms"),
+                        "command_total_time_ms": timing.get("command_total_time_ms"),
+                    })
         except Exception as e:
             print(f"Graph Neo4j error: {e}")
     return JSONResponse({"nodes": list(nodes_map.values()), "edges": edges})

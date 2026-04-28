@@ -88,7 +88,13 @@ def _placement_status(results: list) -> str:
     return "PLACED"
 
 
-def _history_item(intent: dict, results: list, text: str) -> dict:
+def _history_item(
+    intent: dict,
+    results: list,
+    text: str,
+    command_id: str = "",
+    time_ms: float = 0.0,
+) -> dict:
     placed = [r for r in results if r.get("node")]
     failed = [r for r in results if not r.get("node")]
     is_grouped = len(results) == 1 and results[0].get("grouped")
@@ -105,6 +111,10 @@ def _history_item(intent: dict, results: list, text: str) -> dict:
             "grouped": False,
             "time": time.strftime("%H:%M:%S"),
             "text": text,
+            "command_id": command_id,
+            "time_ms": time_ms,
+            "placement_time_ms": time_ms,
+            "command_total_time_ms": None,
             "source": "failed",
             "skipped": [r.get("service") for r in failed],
         }
@@ -121,12 +131,17 @@ def _history_item(intent: dict, results: list, text: str) -> dict:
         "grouped": is_grouped,
         "time": time.strftime("%H:%M:%S"),
         "text": text,
+        "command_id": command_id,
+        "time_ms": time_ms,
+        "placement_time_ms": time_ms,
+        "command_total_time_ms": None,
         "source": placed[0].get("source", "?"),
         "skipped": [r.get("service") for r in failed],
     }
 
 
 def process_text_command(text: str, lang: str, loop):
+    command_start = time.perf_counter()
     text = (text or "").strip()
     if not text:
         loop.run_until_complete(broadcast({"type": "no_intent", "text": ""}))
@@ -134,6 +149,7 @@ def process_text_command(text: str, lang: str, loop):
 
     print(f"\nText pipeline input [{lang.upper()}]: {text}")
     state["last_text"] = text
+    command_id = f"cmd-{int(time.time() * 1000)}"
     loop.run_until_complete(broadcast({"type": "transcript", "text": text, "lang": lang}))
 
     detected = detect_multiple_intentions(text)
@@ -145,7 +161,10 @@ def process_text_command(text: str, lang: str, loop):
         return
 
     print(f"\n{len(detected)} intention(s) detected:")
+    command_history_items = []
+    per_intention_times = []
     for intent in detected:
+        intention_start = time.perf_counter()
         print("\n" + "-" * 45)
         print(f"   {intent['id']} - {intent['description']}")
         print(f"   Services: {', '.join(intent['services'])}")
@@ -185,20 +204,42 @@ def process_text_command(text: str, lang: str, loop):
             state["stats"]["fail"] += 1
             print("   FAILED: no node available")
 
-        history = _history_item(intent, results, text)
-        state["placements"].insert(0, history)
-        record_analytics_snapshot()
+        intention_elapsed_ms = round((time.perf_counter() - intention_start) * 1000, 2)
+        history = _history_item(intent, results, text, command_id, intention_elapsed_ms)
+        command_history_items.append(history)
+        per_intention_times.append({
+            "id": intent["id"],
+            "node": history.get("node") or (history.get("nodes") or [None])[0],
+            "nodes": history.get("nodes") or [],
+            "time_ms": intention_elapsed_ms,
+            "latency_ms": history.get("lat"),
+            "status": history.get("status", "FAILED"),
+            "services": intent["services"],
+        })
+        print(f"   Placement execution time: {intention_elapsed_ms}ms")
         write_voice_placement(intent, results, text)
 
+    total_elapsed_ms = round((time.perf_counter() - command_start) * 1000, 2)
+    for history in command_history_items:
+        history["command_total_time_ms"] = total_elapsed_ms
+        state["placements"].insert(0, history)
+
     state["placements"] = state["placements"][:20]
+    record_analytics_snapshot()
 
     response = generate_response(text, detected, state["placements"][:len(detected)], lang)
     print(f"\nResponse: {response}")
+    print(f"Total command placement time: {total_elapsed_ms}ms")
     speak(response, lang)
 
     loop.run_until_complete(broadcast({
-        "type": "placement",
+        "type": "placement_result",
+        "command_id": command_id,
+        "command_text": text,
         "intents": [i["id"] for i in detected],
+        "intentions": [i["id"] for i in detected],
+        "total_time_ms": total_elapsed_ms,
+        "per_intention": per_intention_times,
         "intent": detected[0]["id"],
         "node": state["last_node"],
         "lat": state["placements"][0].get("lat") if state["placements"] else 0,

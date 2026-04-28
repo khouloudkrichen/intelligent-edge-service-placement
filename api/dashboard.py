@@ -8,23 +8,24 @@ DASHBOARD_HTML = f"""<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IBN Voice Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
-body{{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--t);height:100vh;overflow:hidden;transition:background .3s}}
+body{{font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'Outfit', sans-serif;background:var(--bg);color:var(--t);height:100vh;overflow:hidden;transition:background .3s}}
 body::before{{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--b) 1px,transparent 1px),linear-gradient(90deg,var(--b) 1px,transparent 1px);background-size:40px 40px;opacity:.5;pointer-events:none}}
 .topbar{{display:flex;align-items:center;gap:12px;padding:10px 24px;background:var(--s);border-bottom:1px solid var(--b);position:relative;z-index:10;flex-shrink:0}}
 .logo{{display:flex;align-items:center;gap:10px}}
 .logo-icon{{width:34px;height:34px;background:linear-gradient(135deg,#0ea5e9,#0369a1);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 0 16px rgba(14,165,233,.3)}}
-.logo-title{{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--a)}}
+.logo-title{{font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:13px;font-weight:700;color:var(--a)}}
 .logo-sub{{font-size:10px;color:var(--t3)}}
 .topbar-right{{margin-left:auto;display:flex;align-items:center;gap:10px}}
-.mic-btn{{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;padding:7px 16px;border-radius:4px;border:1px solid var(--a);background:rgba(56,189,248,.1);color:var(--a);cursor:pointer;transition:all .25s;display:flex;align-items:center;gap:6px}}
+.mic-btn{{font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:11px;font-weight:600;padding:7px 16px;border-radius:4px;border:1px solid var(--a);background:rgba(56,189,248,.1);color:var(--a);cursor:pointer;transition:all .25s;display:flex;align-items:center;gap:6px}}
 .mic-btn:hover{{background:rgba(56,189,248,.2)}}
 .mic-btn.recording{{background:rgba(248,113,113,.15);color:#fca5a5;border-color:rgba(248,113,113,.5);animation:micPulse 1s ease-in-out infinite}}
 .mic-btn.processing{{background:rgba(251,191,36,.1);color:#fbbf24;border-color:rgba(251,191,36,.4);cursor:not-allowed}}
-.reset-btn{{font-family:'JetBrains Mono',monospace;font-size:10px;padding:6px 12px;border-radius:4px;border:1px solid var(--b);background:transparent;color:var(--t3);cursor:pointer;transition:all .2s}}
+.reset-btn{{font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:10px;padding:6px 12px;border-radius:4px;border:1px solid var(--b);background:transparent;color:var(--t3);cursor:pointer;transition:all .2s}}
 .reset-btn:hover{{border-color:var(--a);color:var(--a)}}
 .theme-btn{{background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;transition:all .15s}}
 .theme-btn:hover{{border-color:var(--a)}}
@@ -34,59 +35,73 @@ body::before{{content:'';position:fixed;inset:0;background-image:linear-gradient
 .left::-webkit-scrollbar{{width:3px}}
 .left::-webkit-scrollbar-thumb{{background:var(--b);border-radius:2px}}
 .card{{background:var(--s);border:1px solid var(--b);border-radius:6px;padding:14px;transition:background .3s,border .3s}}
-.card-title{{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;color:var(--a);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:7px}}
+.card-title{{font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:10px;font-weight:600;color:var(--a);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:7px}}
 .card-title::before{{content:'';width:6px;height:6px;border-radius:50%;background:var(--a);box-shadow:0 0 6px var(--a);flex-shrink:0}}
 .transcript-box{{background:var(--s2);border:1px solid var(--b);border-radius:4px;padding:12px;font-size:13px;color:var(--t);min-height:48px;font-style:italic;line-height:1.6;transition:border .3s}}
 .transcript-box.recording{{border-color:rgba(248,113,113,.5);animation:borderPulse 1.5s ease-in-out infinite}}
 .transcript-box.processing{{border-color:rgba(251,191,36,.4)}}
 @keyframes borderPulse{{0%,100%{{border-color:rgba(248,113,113,.2)}}50%{{border-color:rgba(248,113,113,.7)}}}}
 .text-input-wrap{{margin-top:10px;display:flex;gap:8px;align-items:flex-start}}
-.text-input{{flex:1;min-height:78px;resize:vertical;padding:10px 12px;border-radius:6px;border:1px solid var(--b);background:var(--s2);color:var(--t);font-family:'Outfit',sans-serif;font-size:13px;outline:none;transition:border .2s, box-shadow .2s}}
+.text-input{{flex:1;min-height:78px;resize:vertical;padding:10px 12px;border-radius:6px;border:1px solid var(--b);background:var(--s2);color:var(--t);font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'Outfit', sans-serif;font-size:13px;outline:none;transition:border .2s, box-shadow .2s}}
 .text-input:focus{{border-color:var(--a);box-shadow:0 0 0 2px rgba(56,189,248,.08)}}
 .send-btn{{height:42px;white-space:nowrap}}
-.helper-txt{{margin-top:6px;font-size:10px;color:var(--t3);font-family:'JetBrains Mono',monospace}}
+.helper-txt{{margin-top:6px;font-size:10px;color:var(--t3);font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace}}
 .intent-node{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}}
 .info-box{{background:var(--s2);border:1px solid var(--b);border-radius:4px;padding:10px}}
-.info-label{{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--t3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px}}
-.info-val{{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--a)}}
+.info-label{{font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:9px;color:var(--t3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px}}
+.info-val{{font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:16px;font-weight:700;color:var(--a)}}
 .info-sub{{font-size:10px;color:var(--t3);margin-top:2px}}
-.kpi-row{{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}}
+.kpi-row{{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}}
 .kpi{{background:var(--s2);border:1px solid var(--b);border-radius:4px;padding:10px}}
-.kpi-val{{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--t)}}
+.kpi-val{{font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:22px;font-weight:700;color:var(--t)}}
 .kpi-lbl{{font-size:9px;color:var(--t3);letter-spacing:.08em;text-transform:uppercase;margin-top:2px}}
+.kpi-sub{{font-size:9px;color:var(--t2);margin-top:4px}}
 .right{{width:360px;min-width:300px;display:flex;flex-direction:column;gap:10px;padding:14px;border-left:1px solid var(--b);overflow-y:auto}}
 .right::-webkit-scrollbar{{width:3px}}
 .right::-webkit-scrollbar-thumb{{background:var(--b);border-radius:2px}}
 .node-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px}}
-.node-card{{background:var(--s2);border:1px solid var(--b);border-radius:4px;padding:9px;transition:all .3s;border-left:3px solid var(--b)}}
+.node-card{{background:var(--s2);border:1px solid var(--b);border-radius:4px;padding:9px;transition:all .3s;border-left:3px solid var(--b);position:relative}}
 .node-card.gw{{border-left-color:#f59e0b}}
 .node-card.cp{{border-left-color:var(--a)}}
 .node-card.active{{border-color:rgba(34,211,238,.4);box-shadow:0 0 10px rgba(34,211,238,.1)}}
-.node-id{{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--a);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}}
-.node-badge{{font-size:8px;padding:1px 5px;border-radius:2px;font-family:'JetBrains Mono',monospace}}
+.node-card.latest-command-node{{border-color:var(--a);box-shadow:0 0 18px rgba(34,211,238,.8);animation:pulseLatestCommand 1.4s ease-in-out infinite}}
+.node-card.latest-placement{{border-color:var(--a);box-shadow:0 0 18px rgba(34,211,238,.8);animation:pulseLatestCommand 1.4s ease-in-out infinite}}
+.node-card.hover-placement{{border-color:#f59e0b;box-shadow:0 0 18px rgba(245,158,11,.6)}}
+@keyframes pulseLatestCommand{{0%{{box-shadow:0 0 8px rgba(34,211,238,.35)}}50%{{box-shadow:0 0 24px rgba(34,211,238,.95)}}100%{{box-shadow:0 0 8px rgba(34,211,238,.35)}}}}
+.latest-label{{display:inline-flex;align-items:center;gap:4px;margin:0 0 6px;padding:2px 6px;border-radius:999px;border:1px solid rgba(34,211,238,.45);background:rgba(34,211,238,.12);color:var(--a);font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}}
+.latest-label span{{color:var(--t2);font-weight:600;text-transform:none;letter-spacing:0}}
+.node-intents-pop{{display:none;margin-top:7px;padding:6px;border-radius:4px;border:1px solid var(--b);background:var(--s);color:var(--t2);font-size:9px;line-height:1.45}}
+.node-card:hover .node-intents-pop{{display:block}}
+.node-id{{font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:11px;font-weight:700;color:var(--a);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}}
+.node-badge{{font-size:8px;padding:1px 5px;border-radius:2px;font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace}}
 .node-badge.gw{{background:rgba(245,158,11,.15);color:#f59e0b}}
 .node-badge.cp{{background:rgba(56,189,248,.12);color:var(--a)}}
 .res-row{{display:flex;align-items:center;gap:5px;margin-bottom:3px}}
-.res-lbl{{font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--t3);width:26px;flex-shrink:0}}
+.res-lbl{{font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:8px;color:var(--t3);width:26px;flex-shrink:0}}
 .bar{{flex:1;height:4px;background:var(--s);border-radius:2px;overflow:hidden}}
 .bar-fill{{height:100%;border-radius:2px;transition:width .5s ease,background .3s}}
-.res-pct{{font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--t2);width:24px;text-align:right}}
+.res-pct{{font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:8px;color:var(--t2);width:24px;text-align:right}}
 .log-list{{display:flex;flex-direction:column;gap:4px;max-height:280px;overflow-y:auto}}
 .log-list::-webkit-scrollbar{{width:3px}}
 .log-item{{display:flex;align-items:flex-start;gap:7px;padding:7px 9px;border-radius:3px;border-left:2px solid;animation:logIn .25s ease both}}
 @keyframes logIn{{from{{opacity:0;transform:translateX(-6px)}}to{{opacity:1;transform:translateX(0)}}}}
 .log-item.ok{{background:rgba(34,211,238,.05);border-color:#22d3ee}}
 .log-item.fail{{background:rgba(248,113,113,.05);border-color:#f87171}}
+.log-item[data-node-id]{{cursor:pointer}}
+.log-item[data-node-id]:hover{{background:rgba(245,158,11,.08);box-shadow:0 0 0 1px rgba(245,158,11,.22) inset}}
+.log-item.latest-log{{box-shadow:0 0 0 1px rgba(34,211,238,.28) inset}}
 .log-icon{{font-size:11px;flex-shrink:0}}
 .log-content{{flex:1;min-width:0}}
-.log-id{{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:var(--a)}}
+.log-id{{font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:10px;font-weight:700;color:var(--a)}}
 .log-desc{{font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
-.log-detail{{font-family:'JetBrains Mono',monospace;font-size:9px;color:#22d3ee;margin-top:1px}}
-.log-fail-txt{{font-family:'JetBrains Mono',monospace;font-size:9px;color:#f87171;margin-top:1px}}
-.log-time{{font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--t3);flex-shrink:0}}
-.log-empty{{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--t3);padding:12px;text-align:center}}
+.log-detail{{font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:9px;color:#22d3ee;margin-top:1px}}
+.log-fail-txt{{font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:9px;color:#f87171;margin-top:1px}}
+.log-time-metric{{font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:9px;color:#fbbf24;margin-top:2px}}
+.log-command-time{{font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:9px;color:var(--a);margin-top:3px}}
+.log-time{{font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:8px;color:var(--t3);flex-shrink:0}}
+.log-empty{{font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:11px;color:var(--t3);padding:12px;text-align:center}}
 .tabs{{display:flex;gap:4px;margin-left:20px}}
-.tab{{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;padding:6px 14px;border-radius:4px;border:1px solid var(--b);background:transparent;color:var(--t3);cursor:pointer;transition:all .2s;text-decoration:none}}
+.tab{{font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:11px;font-weight:600;padding:6px 14px;border-radius:4px;border:1px solid var(--b);background:transparent;color:var(--t3);cursor:pointer;transition:all .2s;text-decoration:none}}
 .tab:hover{{border-color:var(--a);color:var(--a)}}
 .tab.active{{background:rgba(56,189,248,.15);border-color:var(--a);color:var(--a)}}
 .view{{display:none}}
@@ -98,8 +113,8 @@ body::before{{content:'';position:fixed;inset:0;background-image:linear-gradient
 .legend-item{{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--t2)}}
 .legend-dot{{width:10px;height:10px;border-radius:50%;flex-shrink:0}}
 .graph-stats{{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}}
-.graph-tooltip{{position:absolute;background:var(--s);border:1px solid var(--a);border-radius:4px;padding:8px 12px;font-size:11px;color:var(--t);pointer-events:none;display:none;z-index:100;max-width:220px;font-family:'JetBrains Mono',monospace}}
-#graphView .card-title{{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;color:var(--a);letter-spacing:.1em;text-transform:uppercase}}
+.graph-tooltip{{position:absolute;background:var(--s);border:1px solid var(--a);border-radius:4px;padding:8px 12px;font-size:11px;color:var(--t);pointer-events:none;display:none;z-index:100;max-width:220px;font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace}}
+#graphView .card-title{{font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:10px;font-weight:600;color:var(--a);letter-spacing:.1em;text-transform:uppercase}}
 </style>
 <link rel="stylesheet" href="/static/css/theme.css">
 </head>
@@ -165,6 +180,7 @@ body::before{{content:'';position:fixed;inset:0;background-image:linear-gradient
         <div class="kpi"><div class="kpi-val" id="kpiTotal" style="color:#7dd3fc">0</div><div class="kpi-lbl">Total</div></div>
         <div class="kpi"><div class="kpi-val" id="kpiSuccess" style="color:#22d3ee">0</div><div class="kpi-lbl">Succès</div></div>
         <div class="kpi"><div class="kpi-val" id="kpiFail" style="color:#f87171">0</div><div class="kpi-lbl">Échecs</div></div>
+        <div class="kpi"><div class="kpi-val" id="kpiPlacementLatest" style="color:#fbbf24">--</div><div class="kpi-lbl">Placement Time</div><div class="kpi-sub" id="kpiPlacementAvg">Average: --</div></div>
       </div>
     </div>
 
@@ -188,36 +204,35 @@ body::before{{content:'';position:fixed;inset:0;background-image:linear-gradient
 <div id="graphView" class="view graph-wrapper" style="flex-direction:column;padding:12px;gap:10px;height:calc(100vh - 53px);overflow:hidden">
   <div class="graph-stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;flex-shrink:0">
     <div class="stats-box top-card neo-box" style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:10px 14px">
-      <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:#7dd3fc" id="gTotalNodes">0</div>
+      <div style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:22px;font-weight:700;color:#7dd3fc" id="gTotalNodes">0</div>
       <div style="font-size:9px;color:var(--t3);letter-spacing:.08em;text-transform:uppercase;margin-top:2px">Intentions</div>
     </div>
     <div class="stats-box top-card neo-box" style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:10px 14px">
-      <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:#22d3ee" id="gTotalIbn">0</div>
+      <div style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:22px;font-weight:700;color:#22d3ee" id="gTotalIbn">0</div>
       <div style="font-size:9px;color:var(--t3);letter-spacing:.08em;text-transform:uppercase;margin-top:2px">Nœuds IBN</div>
     </div>
     <div class="stats-box top-card neo-box" style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:10px 14px">
-      <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:#a78bfa" id="gTotalEdges">0</div>
+      <div style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:22px;font-weight:700;color:#a78bfa" id="gTotalEdges">0</div>
       <div style="font-size:9px;color:var(--t3);letter-spacing:.08em;text-transform:uppercase;margin-top:2px">Placements</div>
     </div>
   </div>
 
   <div class="legend-bar graph-panel neo-box" style="display:flex;gap:10px;padding:7px 14px;background:var(--card);border:1px solid var(--border);border-radius:6px;align-items:center;flex-wrap:wrap;flex-shrink:0">
-    <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.1em">Légende</span>
-    <div class="legend-item"><div class="legend-dot" style="background:#38bdf8"></div>Intention succès</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#f87171"></div>Intention échec</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#22d3ee"></div>Nœud actif</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#475569"></div>Nœud inactif</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Nœud chargé (&gt;50%)</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#f87171"></div>Nœud saturé (&gt;80%)</div>
+    <span style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.1em">Légende</span>
+    <div class="legend-item"><div style="width:22px;height:12px;border-radius:3px;background:#38bdf8"></div>Intention</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#22d3ee"></div>Computing node</div>
+    <div class="legend-item"><div style="width:12px;height:12px;background:#a78bfa;border-radius:2px"></div>Gateway</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Loaded (&gt;50%)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f87171"></div>Saturated (&gt;80%)</div>
     <div class="legend-item"><div style="width:20px;height:2px;background:#22d3ee;border-radius:1px"></div>PLACED_ON</div>
-    <div class="legend-item" style="color:var(--t2);font-size:10px">🖱️ Clic = détails</div>
-    <button class="refresh-panel neo-box" onclick="loadGraph()" style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;padding:5px 14px;border-radius:4px;border:1px solid var(--a);background:var(--input);color:var(--a);cursor:pointer">↻ Rafraîchir</button>
+    <div class="legend-item" style="color:var(--t2);font-size:10px">Clic = détails</div>
+    <button class="refresh-panel neo-box" onclick="loadGraph()" style="margin-left:auto;font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:10px;padding:5px 14px;border-radius:4px;border:1px solid var(--a);background:var(--input);color:var(--a);cursor:pointer">↻ Rafraîchir</button>
   </div>
 
   <div class="graph-body graph-wrapper" style="flex:1;display:flex;gap:10px;min-height:0">
     <div class="graph-panel cy-container neo-box" style="flex:1;background:var(--graph-bg, var(--card));border:1px solid var(--border);border-radius:8px;overflow:hidden;position:relative;min-height:0">
       <canvas id="graphCanvas" style="width:100%;height:100%;display:block"></canvas>
-      <div id="graphHint" style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--t3);pointer-events:none">
+      <div id="graphHint" style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:10px;color:var(--t3);pointer-events:none">
         🖱️ Clique sur un nœud pour voir ses détails
       </div>
     </div>
@@ -225,7 +240,7 @@ body::before{{content:'';position:fixed;inset:0;background-image:linear-gradient
     <div id="nodePanel" class="details-panel right-panel sidebar-box graph-panel neo-box" style="width:280px;flex-shrink:0;background:var(--card);border:1px solid var(--border);border-radius:8px;overflow-y:auto;transition:all .3s">
       <div id="panelEmpty" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;padding:20px;text-align:center">
         <div style="font-size:36px;opacity:.3">🕸️</div>
-        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--t3);line-height:1.6">
+        <div style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:10px;color:var(--t3);line-height:1.6">
           Clique sur un nœud<br>pour afficher<br>ses détails
         </div>
       </div>
@@ -241,6 +256,13 @@ const micBtn = document.getElementById('micBtn');
 const box = document.getElementById('transcriptBox');
 const textInput = document.getElementById('textCommand');
 const sendTextBtn = document.getElementById('sendTextBtn');
+let latestCommandId = '';
+let latestCommandText = '';
+let latestCommandIntentIds = [];
+let latestCommandPlacements = [];
+let latestHighlightedNodeIds = [];
+let latestCommandTotalTimeMs = 0;
+let hoverPlacedNodeIds = [];
 
 function toggleRecording() {{
   if (isRecording) {{
@@ -278,6 +300,7 @@ function sendTextCommand() {{
 function resetSystem() {{
   ws.send(JSON.stringify({{cmd: 'reset'}}));
   document.getElementById('intentNode').style.display = 'none';
+  clearLatestCommandHighlight();
   box.className = 'transcript-box';
   box.textContent = 'Système remis à zéro. Clique sur 🎤 Parler ou tape une commande pour recommencer.';
   textInput.value = '';
@@ -303,10 +326,111 @@ textInput.addEventListener('keydown', (e) => {{
   }}
 }});
 
+function nodeIdsFromPlacement(p) {{
+  const ids = [];
+  if (p?.node) ids.push(p.node);
+  if (Array.isArray(p?.nodes)) ids.push(...p.nodes.filter(Boolean));
+  return [...new Set(ids.map(id => String(id)))];
+}}
+
+function placementNodeEntries(p) {{
+  if (Array.isArray(p?.nodes) && p.nodes.length) {{
+    return p.nodes
+      .map((nodeId, index) => ({{
+        nodeId: nodeId ? String(nodeId) : '',
+        service: Array.isArray(p.services) ? p.services[index] : ''
+      }}))
+      .filter(item => item.nodeId);
+  }}
+  return p?.node ? [{{nodeId: String(p.node), service: ''}}] : [];
+}}
+
+function commandKeyFromPlacement(p) {{
+  return p?.command_id || (p?.text ? `text:${{p.text}}` : `fallback:${{p?.time || ''}}:${{p?.id || ''}}`);
+}}
+
+function updateLatestCommandFromHistory(placements, msg = null) {{
+  const list = placements || [];
+  const first = list[0];
+  if (!first) {{
+    latestCommandId = '';
+    latestCommandText = '';
+    latestCommandIntentIds = [];
+    latestCommandPlacements = [];
+    latestHighlightedNodeIds = [];
+    latestCommandTotalTimeMs = 0;
+    return;
+  }}
+
+  const latestKey = msg?.command_id || commandKeyFromPlacement(first);
+  const commandGroup = [];
+  for (const p of list) {{
+    if (commandKeyFromPlacement(p) !== latestKey) break;
+    commandGroup.push(p);
+  }}
+
+  latestCommandId = latestKey;
+  latestCommandText = msg?.command_text || first.text || '';
+  latestCommandIntentIds = commandGroup.map(p => p.id).filter(Boolean);
+  latestCommandPlacements = [];
+  latestCommandTotalTimeMs = msg?.total_time_ms || first.command_total_time_ms || 0;
+
+  commandGroup.forEach(p => {{
+    if (!p?.success) return;
+    const entries = placementNodeEntries(p);
+    const grouped = p.grouped || entries.length <= 1;
+    entries.forEach((entry, index) => {{
+      latestCommandPlacements.push({{
+        command_id: latestCommandId,
+        intention_id: p.id || '',
+        intention_description: p.desc || '',
+        node_id: entry.nodeId,
+        services: grouped ? (p.services || []) : [entry.service || (p.services || [])[index]].filter(Boolean),
+        latency: p.lat,
+        time_ms: p.time_ms || p.placement_time_ms || 0,
+        command_total_time_ms: p.command_total_time_ms || latestCommandTotalTimeMs,
+        status: (p.status || p.source || 'PLACED').toString().toUpperCase()
+      }});
+    }});
+  }});
+
+  latestHighlightedNodeIds = [...new Set(latestCommandPlacements.map(p => p.node_id).filter(Boolean))];
+}}
+
+function latestDetailsForNode(nodeId) {{
+  return latestCommandPlacements.filter(p => p.node_id === nodeId);
+}}
+
+function clearLatestCommandHighlight() {{
+  latestCommandId = '';
+  latestCommandText = '';
+  latestCommandIntentIds = [];
+  latestCommandPlacements = [];
+  latestHighlightedNodeIds = [];
+  latestCommandTotalTimeMs = 0;
+  hoverPlacedNodeIds = [];
+  applyNodeHighlights();
+}}
+
+function setHoveredPlacementNode(nodeIds) {{
+  const ids = Array.isArray(nodeIds) ? nodeIds : [nodeIds];
+  hoverPlacedNodeIds = ids.filter(Boolean).map(id => String(id));
+  applyNodeHighlights();
+}}
+
+function applyNodeHighlights() {{
+  document.querySelectorAll('.node-card[data-node-id]').forEach(card => {{
+    const id = card.dataset.nodeId;
+    card.classList.toggle('latest-command-node', latestHighlightedNodeIds.includes(id));
+    card.classList.toggle('hover-placement', hoverPlacedNodeIds.includes(id));
+  }});
+}}
+
 ws.onmessage = (e) => {{
   const msg = JSON.parse(e.data);
 
   if (msg.type === 'init') {{
+    updateLatestCommandFromHistory(msg.state.placements);
     renderNodes(msg.state.nodes);
     renderLog(msg.state.placements);
     updateStats(msg.state.stats);
@@ -334,13 +458,14 @@ ws.onmessage = (e) => {{
     box.textContent = msg.text;
   }}
 
-  if (msg.type === 'placement') {{
+  if (msg.type === 'placement' || msg.type === 'placement_result') {{
     setIdle();
     document.getElementById('intentNode').style.display = 'grid';
     document.getElementById('intentVal').textContent = msg.intent;
     document.getElementById('nodeVal').textContent = msg.node ? msg.node.toUpperCase() : '—';
     document.getElementById('nodeLatency').textContent = `${{msg.lat}} ms`;
     document.getElementById('intentDesc').textContent = msg.services.join(', ');
+    updateLatestCommandFromHistory(msg.placements, msg);
     renderNodes(msg.nodes);
     renderLog(msg.placements);
     updateStats(msg.stats);
@@ -349,6 +474,7 @@ ws.onmessage = (e) => {{
 
   if (msg.type === 'no_intent') {{
     setIdle();
+    clearLatestCommandHighlight();
     box.textContent = msg.text
       ? `❓ "${{msg.text}}" — Aucune intention IBN détectée`
       : '❌ Aucun audio ou texte valide détecté. Réessayez.';
@@ -356,6 +482,7 @@ ws.onmessage = (e) => {{
 
   if (msg.type === 'placement_failed') {{
     setIdle();
+    clearLatestCommandHighlight();
     document.getElementById('nodeVal').textContent = 'ÉCHEC';
     document.getElementById('nodeLatency').textContent = 'Aucun nœud disponible';
     renderNodes(msg.nodes);
@@ -370,17 +497,38 @@ ws.onclose = () => {{
 
 const barColor = p => p>=80?'#f87171':p>=50?'#f59e0b':'#22d3ee';
 const pct = (u,c) => c>0?Math.min(100,Math.round(u/c*100)):0;
+const escapeHtml = (value = '') => String(value).replace(/[&<>"']/g, c => ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c]));
 
 function renderNodes(nodes) {{
-  document.getElementById('nodeGrid').innerHTML = nodes.map(n => {{
+  const grid = document.getElementById('nodeGrid');
+  grid.innerHTML = nodes.map(n => {{
     const cpu = pct(n.cpu_used,n.cpu), mem = pct(n.mem_used,n.mem), bw = pct(n.bw_used,n.bw);
     const isGW = n.type==='gateway', lc = n.lat>70?'#f87171':n.lat>50?'#f59e0b':'#22d3ee';
-    return `<div class="node-card ${{isGW?'gw':'cp'}} ${{n.active?'active':''}}">
+    const nodeLatestDetails = latestDetailsForNode(n.id);
+    const isLatest = nodeLatestDetails.length > 0;
+    const isHover = hoverPlacedNodeIds.includes(n.id);
+    const intents = Array.isArray(n.intents) ? n.intents : [];
+    const intentsText = intents.length ? intents.join(', ') : 'Aucune intention placée';
+    const latestIntentText = [...new Set(nodeLatestDetails.map(d => d.intention_id).filter(Boolean))].join(', ');
+    const latestMeta = latestIntentText ? `${{latestIntentText}} · ${{latestCommandId}}` : latestCommandId;
+    const latestLabel = isLatest ? `<div class="latest-label">Latest command <span>${{escapeHtml(latestMeta)}}</span></div>` : '';
+    const latestDetailsHtml = isLatest
+      ? `<div class="node-intents-pop"><strong>Latest command on ${{escapeHtml(n.id.toUpperCase())}}</strong><br>${{
+          nodeLatestDetails.map(d => `
+            <div style="margin-top:5px">
+              <b>${{escapeHtml(d.intention_id)}}</b> · ${{escapeHtml(d.status)}} · ${{d.latency ?? '?'}}ms<br>
+              <span>${{escapeHtml((d.services || []).join(', ') || 'services n/a')}}</span><br>
+              <span style="color:#fbbf24">⚡ ${{d.time_ms || '?'}} ms</span>
+            </div>`).join('')
+        }}</div>`
+      : `<div class="node-intents-pop"><strong>Intentions placées</strong><br>${{escapeHtml(intentsText)}}</div>`;
+    return `<div class="node-card ${{isGW?'gw':'cp'}} ${{n.active?'active':''}} ${{isLatest?'latest-command-node':''}} ${{isHover?'hover-placement':''}}" data-node-id="${{n.id}}" title="Intentions: ${{escapeHtml(intentsText)}}">
+      ${{latestLabel}}
       <div class="node-id">${{n.id.toUpperCase()}}<span class="node-badge ${{isGW?'gw':'cp'}}">${{isGW?'GW':'CP'}}</span></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-bottom:6px">
         ${{[['CPU',n.cpu_used,n.cpu,'#38bdf8'],['MEM',n.mem_used,n.mem+'G','#818cf8'],
            ['DISK',n.disk_used,n.disk+'G','#34d399'],['BW',n.bw_used,n.bw+'M','#f59e0b']]
-          .map(([l,u,c,col])=>`<div style="font-family:'JetBrains Mono',monospace;font-size:8px;background:var(--s);border-radius:3px;padding:3px 5px">
+          .map(([l,u,c,col])=>`<div style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:8px;background:var(--s);border-radius:3px;padding:3px 5px">
             <div style="color:var(--t3);font-size:7px">${{l}}</div>
             <div style="color:${{col}};font-weight:700">${{u}}/${{c}}</div></div>`).join('')}}
       </div>
@@ -388,40 +536,87 @@ function renderNodes(nodes) {{
         <div class="res-row"><span class="res-lbl">${{l}}</span>
         <div class="bar"><div class="bar-fill" style="width:${{v}}%;background:${{barColor(v)}}"></div></div>
         <span class="res-pct">${{v}}%</span></div>`).join('')}}
-      <div style="font-family:'JetBrains Mono',monospace;font-size:8px;margin-top:5px;display:flex;justify-content:space-between">
+      <div style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:8px;margin-top:5px;display:flex;justify-content:space-between">
         <span style="color:${{lc}}">⏱ ${{n.lat}}ms</span>
-        <span style="color:${{n.active?'#22d3ee':'var(--t3)'}}">${{n.intents.length}} intent${{n.intents.length!==1?'s':''}}</span>
-      </div></div>`;
+        <span style="color:${{n.active?'#22d3ee':'var(--t3)'}}">${{intents.length}} intent${{intents.length!==1?'s':''}}</span>
+      </div>
+      ${{latestDetailsHtml}}
+    </div>`;
   }}).join('');
+  applyNodeHighlights();
 }}
 
 function renderLog(placements) {{
   const list = document.getElementById('logList');
+  updatePlacementTimeStats(placements);
 
   if (!placements || !placements.length) {{
     list.innerHTML = '<div class="log-empty">Aucun placement — clique sur 🎤 Parler ou envoie un texte pour commencer</div>';
     return;
   }}
 
-  list.innerHTML = placements.map(p => `
-    <div class="log-item ${{p.success ? 'ok' : 'fail'}}">
+  list.innerHTML = placements.map((p, index) => {{
+    const nodeIds = nodeIdsFromPlacement(p);
+    const nodeId = nodeIds[0] || '';
+    const commandKey = commandKeyFromPlacement(p);
+    const isLatestCommand = commandKeyFromPlacement(p) === latestCommandId;
+    const hoverIds = isLatestCommand ? latestHighlightedNodeIds : nodeIds;
+    const nodeAttr = nodeId ? ` data-node-id="${{nodeId}}" data-node-ids="${{hoverIds.join(',')}}"` : '';
+    const latestClass = isLatestCommand ? ' latest-log' : '';
+    const targetText = nodeIds.length > 1 ? nodeIds.map(id => id.toUpperCase()).join(', ') : (p.node || p.nodes?.[0] || '?').toUpperCase();
+    const intentTime = p.time_ms || p.placement_time_ms;
+    const showCommandTotal = index === 0 || commandKeyFromPlacement(placements[index - 1]) !== commandKey;
+    const commandTotal = p.command_total_time_ms;
+    return `
+    <div class="log-item ${{p.success ? 'ok' : 'fail'}}${{latestClass}}"${{nodeAttr}}>
       <div class="log-icon">${{p.success ? '✅' : '❌'}}</div>
       <div class="log-content">
         <div class="log-id">${{p.id}}</div>
         <div class="log-desc">${{p.desc}}</div>
         ${{p.success
-          ? `<div class="log-detail">${{(p.source || 'PLACED').toUpperCase()}} → ${{(p.node || p.nodes?.[0] || '?').toUpperCase()}} (${{p.lat ?? '?'}}ms)</div>`
+          ? `<div class="log-detail">${{(p.status || p.source || 'PLACED').toUpperCase()}} → ${{targetText}} (${{p.lat ?? '?'}}ms)</div>`
           : `<div class="log-fail-txt">ÉCHEC — ${{(p.source || 'failed').toUpperCase()}}</div>`
         }}
+        ${{intentTime ? `<div class="log-time-metric">⚡ Intention placement time: ${{intentTime}} ms</div>` : ''}}
+        ${{showCommandTotal && commandTotal ? `<div class="log-command-time">Total placement time: ${{commandTotal}} ms</div>` : ''}}
       </div>
       <div class="log-time">${{p.time || ''}}</div>
-    </div>`).join('');
+    </div>`;
+  }}).join('');
+
+  list.querySelectorAll('.log-item[data-node-id]').forEach(item => {{
+    item.addEventListener('mouseenter', () => setHoveredPlacementNode((item.dataset.nodeIds || item.dataset.nodeId).split(',')));
+    item.addEventListener('mouseleave', () => setHoveredPlacementNode([]));
+  }});
 }}
 
 function updateStats(s) {{
   document.getElementById('kpiTotal').textContent = s.total;
   document.getElementById('kpiSuccess').textContent = s.success;
   document.getElementById('kpiFail').textContent = s.fail;
+}}
+
+function updatePlacementTimeStats(placements) {{
+  const latestEl = document.getElementById('kpiPlacementLatest');
+  const avgEl = document.getElementById('kpiPlacementAvg');
+  const seen = new Set();
+  const commandTimes = [];
+  (placements || []).forEach(p => {{
+    const total = p.command_total_time_ms;
+    if (!total) return;
+    const key = commandKeyFromPlacement(p);
+    if (seen.has(key)) return;
+    seen.add(key);
+    commandTimes.push(Number(total));
+  }});
+  if (!commandTimes.length) {{
+    latestEl.textContent = '--';
+    avgEl.textContent = 'Average: --';
+    return;
+  }}
+  latestEl.textContent = `⚡ ${{commandTimes[0]}} ms`;
+  const avg = Math.round(commandTimes.reduce((a,b) => a + b, 0) / commandTimes.length);
+  avgEl.textContent = `Average: ${{avg}} ms`;
 }}
 
 function applyTheme(theme) {{
@@ -534,8 +729,8 @@ function showPanel(n) {{
       const c = pct>=80?'#f87171':pct>=50?'#f59e0b':col;
       return `<div style="margin-bottom:10px">
         <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#94a3b8">${{label}}</span>
-          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:${{c}}">${{used}}/${{cap}} (${{pct}}%)</span>
+          <span style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:9px;color:#94a3b8">${{label}}</span>
+          <span style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:9px;color:${{c}}">${{used}}/${{cap}} (${{pct}}%)</span>
         </div>
         <div style="height:5px;background:var(--s);border-radius:3px;overflow:hidden">
           <div style="height:100%;width:${{w}}%;background:${{c}};border-radius:3px;transition:width .4s"></div>
@@ -547,27 +742,27 @@ function showPanel(n) {{
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--b)">
         <div style="width:36px;height:36px;border-radius:8px;background:rgba(56,189,248,.1);border:1px solid ${{typeCol}}33;display:flex;align-items:center;justify-content:center;font-size:18px">${{typeIcon}}</div>
         <div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:${{typeCol}}">${{n.id.toUpperCase()}}</div>
+          <div style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:15px;font-weight:700;color:${{typeCol}}">${{n.id.toUpperCase()}}</div>
           <div style="font-size:10px;color:var(--t2)">${{isGW ? 'Gateway Node' : 'Computing Node'}}</div>
         </div>
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
         <div style="background:var(--s2);border-radius:6px;padding:8px;border:1px solid var(--b)">
-          <div style="font-size:9px;color:var(--t2);margin-bottom:3px;font-family:'JetBrains Mono',monospace">STATUT</div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:${{statCol}}">${{statTxt}}</div>
+          <div style="font-size:9px;color:var(--t2);margin-bottom:3px;font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace">STATUT</div>
+          <div style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:11px;font-weight:600;color:${{statCol}}">${{statTxt}}</div>
         </div>
         <div style="background:var(--s2);border-radius:6px;padding:8px;border:1px solid var(--b)">
-          <div style="font-size:9px;color:var(--t2);margin-bottom:3px;font-family:'JetBrains Mono',monospace">LATENCE</div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:#38bdf8">${{n.lat}}ms</div>
+          <div style="font-size:9px;color:var(--t2);margin-bottom:3px;font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace">LATENCE</div>
+          <div style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:11px;font-weight:600;color:#38bdf8">${{n.lat}}ms</div>
           <div style="font-size:8px;color:var(--t3)">${{n.lat_min}}–${{n.lat_max}}ms</div>
         </div>
       </div>
 
       <div style="background:var(--s2);border-radius:6px;padding:10px;border:1px solid var(--b);margin-bottom:14px">
         <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--t2);text-transform:uppercase;letter-spacing:.08em">Charge globale</span>
-          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:${{loadCol}}">${{pMax}}%</span>
+          <span style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:9px;color:var(--t2);text-transform:uppercase;letter-spacing:.08em">Charge globale</span>
+          <span style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:11px;font-weight:700;color:${{loadCol}}">${{pMax}}%</span>
         </div>
         <div style="height:6px;background:var(--s);border-radius:3px;overflow:hidden">
           <div style="height:100%;width:${{pMax}}%;background:${{loadCol}};border-radius:3px;box-shadow:0 0 6px ${{loadCol}}66"></div>
@@ -575,23 +770,23 @@ function showPanel(n) {{
       </div>
 
       <div style="background:var(--s2);border-radius:6px;padding:10px;border:1px solid var(--b);margin-bottom:14px">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--t2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Ressources</div>
+        <div style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:9px;color:var(--t2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Ressources</div>
         ${{resRow('CPU', n.used_cpu, n.cap_cpu+' cores', n.pct_cpu, '#38bdf8')}}
         ${{resRow('MEM', n.used_mem+'G', n.cap_mem+'G', n.pct_mem, '#818cf8')}}
         ${{resRow('BW', n.used_bw+'M', n.cap_bw+'M', n.pct_bw, '#f59e0b')}}
         <div style="display:flex;justify-content:space-between;margin-top:6px">
-          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--t2)">DISK</span>
-          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#34d399">${{n.used_disk}}G / ${{n.cap_disk}}G</span>
+          <span style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:9px;color:var(--t2)">DISK</span>
+          <span style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:9px;color:#34d399">${{n.used_disk}}G / ${{n.cap_disk}}G</span>
         </div>
       </div>
 
       <div style="background:var(--s2);border-radius:6px;padding:10px;border:1px solid var(--b)">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--t2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">
+        <div style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:9px;color:var(--t2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">
           Intentions placées (${{n.intents.length}})
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:5px">
           ${{n.intents.length
-            ? n.intents.map(i=>`<span style="background:rgba(56,189,248,.12);color:#38bdf8;padding:3px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10px;border:1px solid rgba(56,189,248,.2)">${{i}}</span>`).join('')
+            ? n.intents.map(i=>`<span style="background:rgba(56,189,248,.12);color:#38bdf8;padding:3px 8px;border-radius:4px;font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:10px;border:1px solid rgba(56,189,248,.2)">${{i}}</span>`).join('')
             : '<span style="color:var(--t3);font-size:11px">Aucune intention</span>'
           }}
         </div>
@@ -599,36 +794,90 @@ function showPanel(n) {{
   }} else {{
     const sc = n.success ? '#22d3ee' : '#f87171';
     const icon = n.success ? '✅' : '❌';
+    const placementTime = n.placement_time_ms ? `⚡ ${{n.placement_time_ms}} ms` : '—';
+    const commandTime = n.command_total_time_ms ? `Total command: ${{n.command_total_time_ms}} ms` : '';
     pcontent.innerHTML = `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--b)">
         <div style="width:36px;height:36px;border-radius:8px;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.2);display:flex;align-items:center;justify-content:center;font-size:18px">🎯</div>
         <div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:#38bdf8">${{n.id.toUpperCase()}}</div>
+          <div style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:15px;font-weight:700;color:#38bdf8">${{n.id.toUpperCase()}}</div>
           <div style="font-size:10px;color:${{sc}}">${{icon}} ${{n.success ? 'Placée avec succès' : 'Placement échoué'}}</div>
         </div>
       </div>
 
       <div style="background:var(--s2);border-radius:6px;padding:10px;border:1px solid var(--b);margin-bottom:10px">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--t2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em">Description</div>
+        <div style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:9px;color:var(--t2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em">Description</div>
         <div style="font-size:11px;color:var(--t);line-height:1.6">${{n.desc || '—'}}</div>
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
         <div style="background:var(--s2);border-radius:6px;padding:8px;border:1px solid var(--b)">
-          <div style="font-size:9px;color:var(--t2);margin-bottom:3px;font-family:'JetBrains Mono',monospace">SERVICES</div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#a78bfa">${{n.services || '—'}}</div>
+          <div style="font-size:9px;color:var(--t2);margin-bottom:3px;font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace">SERVICES</div>
+          <div style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:11px;color:#a78bfa">${{n.services || '—'}}</div>
         </div>
         <div style="background:var(--s2);border-radius:6px;padding:8px;border:1px solid var(--b)">
-          <div style="font-size:9px;color:var(--t2);margin-bottom:3px;font-family:'JetBrains Mono',monospace">TIMESTAMP</div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#38bdf8">${{n.ts || '—'}}</div>
+          <div style="font-size:9px;color:var(--t2);margin-bottom:3px;font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace">TIMESTAMP</div>
+          <div style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:11px;color:#38bdf8">${{n.ts || '—'}}</div>
         </div>
       </div>
 
+      <div style="background:var(--s2);border-radius:6px;padding:10px;border:1px solid var(--b);margin-bottom:10px">
+        <div style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:9px;color:var(--t2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em">Placement Time</div>
+        <div style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:12px;color:#fbbf24">${{placementTime}}</div>
+        <div style="font-size:9px;color:var(--t3);margin-top:3px">${{commandTime}}</div>
+      </div>
+
       <div style="background:var(--s2);border-radius:6px;padding:10px;border:1px solid var(--b)">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--t2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em">Commande vocale</div>
+        <div style="font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace;font-size:9px;color:var(--t2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em">Commande vocale</div>
         <div style="font-size:10px;color:var(--t2);font-style:italic;line-height:1.5">"${{(n.voice_text||'').slice(0,120)}}${{(n.voice_text||'').length>120?'...':''}}"</div>
       </div>`;
   }}
+}}
+
+function drawCircle(ctx, x, y, radius, fill, stroke, lineWidth) {{
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+}}
+
+function drawSquare(ctx, x, y, size, fill, stroke, lineWidth) {{
+  const left = x - size / 2;
+  const top = y - size / 2;
+  ctx.beginPath();
+  ctx.rect(left, top, size, size);
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+}}
+
+function drawRectangle(ctx, x, y, width, height, fill, stroke, lineWidth) {{
+  const left = x - width / 2;
+  const top = y - height / 2;
+  ctx.beginPath();
+  if (ctx.roundRect) {{
+    ctx.roundRect(left, top, width, height, 7);
+  }} else {{
+    ctx.rect(left, top, width, height);
+  }}
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+}}
+
+function graphNodeKind(n) {{
+  const id = (n.id || '').toLowerCase();
+  if (n.type === 'intention' || id.startsWith('i')) return 'intention';
+  if (n.node_type === 'gateway' || n.type === 'gateway' || id.startsWith('g')) return 'gateway';
+  if (n.node_type === 'computing' || n.type === 'computing' || id.startsWith('n')) return 'computing';
+  return n.type === 'ibnnode' ? 'computing' : 'intention';
 }}
 
 function runSimulation() {{
@@ -694,22 +943,30 @@ function runSimulation() {{
 
       const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
       ctx.font = '9px JetBrains Mono'; ctx.fillStyle = cssVar('--muted');
-      ctx.textAlign = 'center'; ctx.fillText(e.lat ? e.lat+'ms' : '', mx, my-4);
+      const edgeLabel = e.placement_time_ms ? `${{e.lat || '?'}}ms · ⚡${{e.placement_time_ms}}ms` : (e.lat ? e.lat+'ms' : '');
+      ctx.textAlign = 'center'; ctx.fillText(edgeLabel, mx, my-4);
     }});
 
     graphData.nodes.forEach(n => {{
       const isHover = n === hovering;
       const isSel = n === selected;
-      let r, fillColor, strokeColor;
+      const kind = graphNodeKind(n);
+      let r = 24, fillColor, strokeColor;
+      let rectW = 58, rectH = 30, squareSize = 42;
 
-      if (n.type === 'ibnnode') {{
-        r = n.node_type === 'gateway' ? 20 : 24;
+      if (kind === 'computing') {{
+        r = 24;
         const pctMax = Math.max(n.pct_cpu||0, n.pct_mem||0, n.pct_bw||0);
         fillColor = pctMax >= 80 ? '#f87171' : pctMax >= 50 ? '#f59e0b' : n.active ? '#22d3ee' : '#475569';
         strokeColor = isSel ? cssVar('--text') : n.active ? cssVar('--border-strong') : cssVar('--border');
+      }} else if (kind === 'gateway') {{
+        squareSize = 42;
+        fillColor = n.active ? '#a78bfa' : '#475569';
+        strokeColor = isSel ? cssVar('--text') : cssVar('--border-strong');
       }} else {{
-        r = 17;
-        fillColor = n.success === false ? '#f87171' : '#38bdf8';
+        rectW = Math.max(48, String(n.label || n.id || '').length * 10 + 22);
+        rectH = 30;
+        fillColor = '#38bdf8';
         strokeColor = isSel ? cssVar('--text') : cssVar('--border-strong');
       }}
 
@@ -718,24 +975,32 @@ function runSimulation() {{
         ctx.shadowBlur = 14;
       }}
 
-      ctx.beginPath(); ctx.arc(n.x, n.y, r + (isHover||isSel?3:0), 0, Math.PI*2);
-      ctx.fillStyle = fillColor; ctx.fill();
-      ctx.strokeStyle = strokeColor; ctx.lineWidth = isSel ? 2.5 : 1; ctx.stroke();
+      const lineWidth = isSel ? 2.5 : 1;
+      const grow = isHover || isSel ? 4 : 0;
+      if (kind === 'intention') {{
+        drawRectangle(ctx, n.x, n.y, rectW + grow, rectH + grow, fillColor, strokeColor, lineWidth);
+      }} else if (kind === 'gateway') {{
+        drawSquare(ctx, n.x, n.y, squareSize + grow, fillColor, strokeColor, lineWidth);
+      }} else {{
+        drawCircle(ctx, n.x, n.y, r + grow / 2, fillColor, strokeColor, lineWidth);
+      }}
       ctx.shadowBlur = 0;
 
-      ctx.font = `bold ${{n.type==='ibnnode'?11:10}}px 'JetBrains Mono',monospace`;
+      ctx.font = `bold ${{n.type==='ibnnode'?11:10}}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", 'JetBrains Mono', monospace`;
       ctx.fillStyle = cssVar('--on-accent');
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(n.label, n.x, n.y);
 
-      if (n.type === 'ibnnode') {{
-        const badge = n.node_type === 'gateway' ? 'GW' : 'CP';
+      if (kind === 'computing' || kind === 'gateway') {{
+        const badge = kind === 'gateway' ? 'GW' : 'CP';
+        const badgeY = n.y + (kind === 'gateway' ? squareSize / 2 : r) + 10;
         ctx.font = '7px JetBrains Mono';
         ctx.fillStyle = cssVar('--muted');
-        ctx.fillText(badge, n.x, n.y + r + 10);
+        ctx.fillText(badge, n.x, badgeY);
 
-        const bw2 = 36, bh2 = 3, bx2 = n.x - bw2/2, by2 = n.y + r + 16;
+        const baseY = n.y + (kind === 'gateway' ? squareSize / 2 : r) + 16;
+        const bw2 = 36, bh2 = 3, bx2 = n.x - bw2/2, by2 = baseY;
         ctx.fillStyle = cssVar('--border');
         ctx.beginPath();
         if (ctx.roundRect) {{

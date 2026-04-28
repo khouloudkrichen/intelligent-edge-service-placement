@@ -79,7 +79,26 @@ body.dark {
 html,
 body {
   color: var(--text);
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    "Segoe UI Emoji",
+    "Apple Color Emoji",
+    "Noto Color Emoji",
+    Inter,
+    Arial,
+    sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family:
+    "Segoe UI Emoji",
+    "Apple Color Emoji",
+    "Noto Color Emoji",
+    Inter,
+    Arial,
+    sans-serif;
 }
 
 body {

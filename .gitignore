@@ -28,3 +28,6 @@ outputs/
 # Configuration locale contenant des informations sensibles
 config.py
 .env
+# Fichiers générés par FAISS / embeddings
+*.npy
+*.bin

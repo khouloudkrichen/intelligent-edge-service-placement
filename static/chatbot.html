@@ -959,6 +959,31 @@ function removeTyping() {
   if (t) t.remove();
 }
 
+function addStreamingRow() {
+  removeTyping();
+
+  const row = document.createElement("div");
+  row.className = "row bot";
+
+  const avatar = document.createElement("div");
+  avatar.className = "avatar bot";
+  avatar.textContent = "🔧";
+
+  const wrap = document.createElement("div");
+  wrap.className = "bubble-wrap";
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble bot";
+  bubble.textContent = "";
+
+  wrap.appendChild(bubble);
+  row.appendChild(avatar);
+  row.appendChild(wrap);
+  messagesEl.appendChild(row);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return { row, bubble };
+}
+
 // SEND
 async function ask(text) {
   inputEl.value = text;
@@ -980,17 +1005,49 @@ async function send() {
   showTyping();
 
   try {
-    const res = await fetch("/chat", {
+    const res = await fetch("/chat/stream", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ message: text }),
     });
 
-    const data = await res.json();
-    removeTyping();
+    if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
 
-    addRow(data.answer, "bot", data);
-    await saveMessage("bot", data.answer, data); // ✅ AJOUT
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let pending = "";
+    let streamed = "";
+    let streamRow = null;
+    let finalData = null;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      pending += decoder.decode(value || new Uint8Array(), { stream: !done });
+      const lines = pending.split("\n");
+      pending = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const event = JSON.parse(line);
+
+        if (event.type === "chunk") {
+          if (!streamRow) streamRow = addStreamingRow();
+          streamed += event.text || "";
+          streamRow.bubble.textContent = streamed;
+          messagesEl.scrollTop = messagesEl.scrollHeight;
+        } else if (event.type === "complete") {
+          finalData = event.data;
+        }
+      }
+      if (done) break;
+    }
+
+    removeTyping();
+    if (streamRow) streamRow.row.remove();
+    if (!finalData) throw new Error("Incomplete chatbot response");
+
+    addRow(finalData.answer, "bot", finalData);
+    await saveMessage("bot", finalData.answer, finalData);
 
   } catch (err) {
     removeTyping();

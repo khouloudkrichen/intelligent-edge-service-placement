@@ -4,10 +4,11 @@ import hashlib
 import json
 import os
 import re
-from collections import OrderedDict
 from difflib import SequenceMatcher
 
+from config import DATASET_FILE
 from data.dataset import INTENTIONS_BY_ID, SERVICES_BY_ID, intentions
+from services.cache import get_cache
 from services.llm import ollama_call
 
 try:
@@ -20,7 +21,7 @@ SEMANTIC_WEIGHT = 0.50
 FUZZY_WEIGHT = 0.30
 KEYWORD_WEIGHT = 0.20
 DETECTION_THRESHOLD = 0.55
-DETECTION_CACHE_MAX = 128
+LOCAL_FALLBACK_THRESHOLD = 0.35
 EMBED_DIM = 384
 OLLAMA_MAX_TOKENS = 350
 
@@ -97,9 +98,14 @@ CLAUSE_CONNECTOR_PATTERN = re.compile(
     flags=re.IGNORECASE,
 )
 
-_DETECTION_CACHE: OrderedDict[str, list[str]] = OrderedDict()
 _INTENTION_PROFILES: list[dict] = []
 _PROFILE_BY_ID: dict[str, dict] = {}
+
+
+def _ollama_intent_fallback_enabled() -> bool:
+    if os.getenv("IBN_SKIP_OLLAMA", "").lower() in {"1", "true", "yes"}:
+        return False
+    return os.getenv("IBN_INTENT_OLLAMA_FALLBACK", "0").lower() in {"1", "true", "yes"}
 
 
 def _humanize(value: object) -> str:
@@ -129,28 +135,39 @@ def tokenize(text: str) -> list[str]:
 
 
 def _cache_key(text: str) -> str:
-    return normalize_text(text)
+    return f"{DATASET_FILE}:{normalize_text(text)}"
+
+
+def _looks_like_repetitive_transcription_noise(text: str) -> bool:
+    tokens = tokenize(text)
+    if len(tokens) < 12:
+        return False
+
+    counts: dict[str, int] = {}
+    for token in tokens:
+        counts[token] = counts.get(token, 0) + 1
+
+    unique_ratio = len(counts) / max(len(tokens), 1)
+    top_ratio = max(counts.values()) / max(len(tokens), 1)
+    return unique_ratio <= 0.25 or top_ratio >= 0.45
 
 
 def _get_cached_detection(text: str) -> list[dict] | None:
     key = _cache_key(text)
-    if not key or key not in _DETECTION_CACHE:
+    if not normalize_text(text):
         return None
-    ids = _DETECTION_CACHE.pop(key)
-    _DETECTION_CACHE[key] = ids
+    ids = get_cache().get_json("detected_intentions", key)
+    if ids is None:
+        return None
     print(f"Detection cache hit -> {ids}")
     return [INTENTIONS_BY_ID[iid] for iid in ids if iid in INTENTIONS_BY_ID]
 
 
 def _store_cached_detection(text: str, detected: list[dict]):
     key = _cache_key(text)
-    if not key:
+    if not normalize_text(text):
         return
-    if key in _DETECTION_CACHE:
-        _DETECTION_CACHE.pop(key)
-    _DETECTION_CACHE[key] = [intent["id"] for intent in detected]
-    while len(_DETECTION_CACHE) > DETECTION_CACHE_MAX:
-        _DETECTION_CACHE.popitem(last=False)
+    get_cache().set_json("detected_intentions", key, [intent["id"] for intent in detected])
 
 
 def _hash_index(feature: str) -> int:
@@ -261,7 +278,6 @@ def preload_detection_profiles(force: bool = False) -> list[dict]:
 
     _INTENTION_PROFILES = profiles
     _PROFILE_BY_ID = {profile["id"]: profile for profile in profiles}
-    _DETECTION_CACHE.clear()
     print(f"Detection profiles precomputed: {len(_INTENTION_PROFILES)} intentions")
     return _INTENTION_PROFILES
 
@@ -288,6 +304,44 @@ def split_intent_chunks(text: str) -> list[str]:
         else:
             cleaned.append(chunk)
     return cleaned or [raw]
+
+
+def summarize_for_intention_detection(text: str) -> str:
+    """Extract the operational action clauses from a long transcription."""
+    raw = re.sub(r"\s+", " ", (text or "").strip())
+    if not raw:
+        return ""
+
+    chunks = split_intent_chunks(raw)
+    action_clauses: list[str] = []
+    seen: set[str] = set()
+
+    for chunk in chunks:
+        tokens = set(tokenize(chunk))
+        has_action = bool(tokens & ACTION_WORDS)
+        has_service_signal = bool(tokens & {
+            "voice", "vocal", "audio", "protocol", "ar", "augmented", "reality",
+            "content", "display", "error", "errors", "fault", "anomaly",
+            "analysis", "analyze", "analyzer", "instruction",
+            "instructions", "guidance", "conversion", "converter",
+        })
+        weak_context_only = tokens <= {"maintenance", "operation", "safety", "documentation", "part", "parts"}
+        if not (has_action or has_service_signal):
+            continue
+        if weak_context_only:
+            continue
+
+        cleaned = chunk.strip(" ,.;:")
+        key = normalize_text(cleaned)
+        if cleaned and key not in seen:
+            action_clauses.append(cleaned)
+            seen.add(key)
+
+    if not action_clauses:
+        return raw
+
+    summary = ", ".join(action_clauses)
+    return summary[:900].rstrip(" ,.;:")
 
 
 def _fuzzy_score(query_norm: str, target_norm: str) -> float:
@@ -377,8 +431,10 @@ def _score_profile(
         final_score = max(0.0, final_score - 0.25)
         print(f"   Negative voice score: AR-focused clause without voice terms -> {intent['id']}")
 
-    if query_has_ar and bool(query_tokens & {"workflow", "pipeline", "complete", "full"}) and intent_is_ar_pipeline:
+    if query_has_ar and bool(query_base_tokens & {"workflow", "pipeline", "complete", "full"}) and intent_is_ar_pipeline:
         final_score = min(1.0, final_score + 0.16)
+    elif query_has_ar and intent_is_ar_pipeline and not bool(query_base_tokens & {"workflow", "pipeline", "complete", "full"}):
+        final_score = max(0.0, final_score - 0.18)
 
     detection_method = "fuzzy" if fuzzy_score >= semantic and fuzzy_score >= 0.70 else "semantic"
 
@@ -537,8 +593,8 @@ def _validate_ollama_matches(data: dict) -> list:
 
 
 def detect_with_ollama(text: str, text_lower: str = "") -> list:
-    if os.getenv("IBN_SKIP_OLLAMA", "").lower() in {"1", "true", "yes"}:
-        print("   Ollama skipped by IBN_SKIP_OLLAMA")
+    if not _ollama_intent_fallback_enabled():
+        print("   Ollama skipped for intention detection")
         return _fallback_semantic_candidates(text)
 
     prompt = f"""You are an intention classifier. Choose only intentions from the provided list. Do not invent new IDs.
@@ -596,7 +652,13 @@ def _detect_single_block(text: str, max_intents: int | None = None) -> list:
         print(f"   Detection method: local, matched IDs={local_ids}, methods={local_methods}")
         return local
 
-    if os.getenv("IBN_SKIP_OLLAMA", "").lower() in {"1", "true", "yes"}:
+    near_local = _select_near_local_candidates(ranked, max_intents)
+    if near_local:
+        local_ids = [i["id"] for i in near_local]
+        print(f"   Detection method: near-local, matched IDs={local_ids}; Ollama not needed")
+        return near_local
+
+    if not _ollama_intent_fallback_enabled():
         print("   Detection method: semantic, no confident match; Ollama skipped")
         return []
 
@@ -604,14 +666,43 @@ def _detect_single_block(text: str, max_intents: int | None = None) -> list:
     return detect_with_ollama(text, normalize_text(text))
 
 
+def _select_near_local_candidates(ranked: list[dict], max_intents: int | None = None) -> list[dict]:
+    """Use fast local matching for near-threshold industrial commands."""
+    selected = [
+        r for r in ranked
+        if r["score"] >= LOCAL_FALLBACK_THRESHOLD
+        and (
+            r.get("keyword", 0) >= 0.35
+            or r.get("fuzzy", 0) >= 0.50
+            or len(r.get("overlap", [])) >= 1
+        )
+    ]
+    if not selected:
+        return []
+    selected = selected[:max_intents] if max_intents else selected[:1]
+    for result in selected:
+        result["confidence"] = max(result["confidence"], LOCAL_FALLBACK_THRESHOLD)
+        result["detection_method"] = "near_local"
+    return [r["intent"] for r in selected]
+
+
 def detect_multiple_intentions(text: str) -> list:
     """Detect all matching intentions dynamically from the loaded dataset."""
-    cached = _get_cached_detection(text)
+    if _looks_like_repetitive_transcription_noise(text):
+        print("Detection rejected: repetitive transcription noise")
+        return []
+
+    detection_text = summarize_for_intention_detection(text)
+    if normalize_text(detection_text) != normalize_text(text):
+        print(f"Detection summary: {detection_text}")
+
+    cached = _get_cached_detection(detection_text)
     if cached is not None:
         return cached
 
     print(f"\nOriginal request: {text}")
-    chunks = split_intent_chunks(text)
+    print(f"Detection input: {detection_text}")
+    chunks = split_intent_chunks(detection_text)
     print(f"Detected chunks ({len(chunks)}):")
     for idx, chunk in enumerate(chunks, 1):
         print(f"   chunk {idx}: {chunk}")
@@ -623,6 +714,21 @@ def detect_multiple_intentions(text: str) -> list:
         ranked = rank_intentions(chunk)
         _print_ranked(ranked)
         selected = [r for r in ranked if r["score"] >= DETECTION_THRESHOLD]
+        if selected:
+            selected = selected[:1]
+        if not selected:
+            selected = [
+                r for r in ranked
+                if r["score"] >= LOCAL_FALLBACK_THRESHOLD
+                and (
+                    r.get("keyword", 0) >= 0.35
+                    or r.get("fuzzy", 0) >= 0.50
+                    or len(r.get("overlap", [])) >= 1
+                )
+            ][:1]
+            for result in selected:
+                result["confidence"] = max(result["confidence"], LOCAL_FALLBACK_THRESHOLD)
+                result["detection_method"] = "near_local"
         print(
             f"Chunk {idx} -> detected "
             f"{[(r['id'], r['confidence']) for r in selected] if selected else 'none'}"
@@ -635,7 +741,7 @@ def detect_multiple_intentions(text: str) -> list:
                 f"{[r['confidence'] for r in selected]}, methods="
                 f"{[r.get('detection_method', 'semantic') for r in selected]}"
             )
-        elif os.getenv("IBN_SKIP_OLLAMA", "").lower() in {"1", "true", "yes"}:
+        elif not _ollama_intent_fallback_enabled():
             print("Detection method: semantic, no confident match; Ollama skipped")
         else:
             print("Detection method: ollama fallback triggered by weak local confidence")
@@ -655,11 +761,11 @@ def detect_multiple_intentions(text: str) -> list:
     if (
         not best_by_id
         and not ollama_attempted
-        and os.getenv("IBN_SKIP_OLLAMA", "").lower() not in {"1", "true", "yes"}
+        and _ollama_intent_fallback_enabled()
     ):
         print("No chunk produced a valid match; calling Ollama on the full command")
-        for intent in detect_with_ollama(text, normalize_text(text)):
-            result = score_intention(text, intent)
+        for intent in detect_with_ollama(detection_text, normalize_text(detection_text)):
+            result = score_intention(detection_text, intent)
             result["score"] = max(result["score"], DETECTION_THRESHOLD)
             result["confidence"] = max(result["confidence"], DETECTION_THRESHOLD)
             result["detection_method"] = "ollama"
@@ -674,7 +780,7 @@ def detect_multiple_intentions(text: str) -> list:
         "Final merged intentions -> "
         + str([(r["id"], r["confidence"], r.get("detection_method", "semantic")) for r in merged])
     )
-    _store_cached_detection(text, detected)
+    _store_cached_detection(detection_text, detected)
     return detected
 
 

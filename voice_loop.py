@@ -7,9 +7,11 @@ import time
 import sounddevice as sd
 
 from config import SAMPLE_RATE, SERVER_PORT
-from core.detection import detect_multiple_intentions
+from core.detection import detect_multiple_intentions, summarize_for_intention_detection
 from core.nodes import state
 from core.placement import place_intention_batch
+from core.placement_cache import placement_cache_key, placement_cache_value
+from services.cache import get_cache
 from services.llm import ollama_call
 from services.neo4j_writer import write_voice_placement
 from services.transcription import transcribe
@@ -144,6 +146,81 @@ def _seconds(ms: float) -> float:
     return round((ms or 0.0) / 1000, 3)
 
 
+def _serve_cached_placement(
+    cached: dict,
+    *,
+    text: str,
+    lang: str,
+    command_id: str,
+    command_start: float,
+    loop,
+) -> bool:
+    intent_ids = cached.get("intent_ids") or []
+    if not intent_ids:
+        return False
+
+    elapsed_ms = round((time.perf_counter() - command_start) * 1000, 2)
+    timing = {
+        "command_total_time_ms": elapsed_ms,
+        "command_total_time_s": _seconds(elapsed_ms),
+        "classification_time_ms": 0.0,
+        "classification_time_s": 0.0,
+        "placement_algorithm_time_ms": 0.0,
+        "placement_algorithm_time_s": 0.0,
+        "neo4j_time_ms": 0.0,
+        "neo4j_time_s": 0.0,
+        "websocket_prepare_time_ms": 0.0,
+        "websocket_prepare_time_s": 0.0,
+        "cache_lookup_time_ms": elapsed_ms,
+        "cache_lookup_time_s": _seconds(elapsed_ms),
+    }
+
+    state["last_intent"] = intent_ids[0]
+    state["last_node"] = cached.get("node") or ""
+    payload = {
+        "type": "placement_result",
+        "command_id": command_id,
+        "command_text": text,
+        "command_summary": cached.get("command_summary", text),
+        "intents": intent_ids,
+        "intentions": intent_ids,
+        "intent": intent_ids[0],
+        "node": cached.get("node"),
+        "lat": cached.get("lat"),
+        "services": cached.get("services") or [],
+        "per_intention": cached.get("per_intention") or [],
+        "nodes": state["nodes"],
+        "placements": state["placements"],
+        "stats": state["stats"],
+        "cache_hit": True,
+        "source": get_cache().backend_name,
+        "placement_reused": True,
+        "resources_applied": False,
+        "total_time_ms": elapsed_ms,
+        "command_total_time_ms": elapsed_ms,
+        "command_total_time_s": _seconds(elapsed_ms),
+        "classification_time_ms": 0.0,
+        "classification_time_s": 0.0,
+        "placement_algorithm_time_ms": 0.0,
+        "placement_algorithm_time_s": 0.0,
+        "neo4j_time_ms": 0.0,
+        "neo4j_time_s": 0.0,
+        "websocket_prepare_time_ms": 0.0,
+        "websocket_prepare_time_s": 0.0,
+        "timing": timing,
+    }
+    print(
+        f"Placement cache hit ({get_cache().backend_name}): "
+        f"intents={intent_ids}, placement_algorithm=0ms, total={elapsed_ms}ms"
+    )
+    loop.run_until_complete(broadcast(payload))
+
+    response = cached.get("response")
+    if response:
+        speak(response, lang)
+    return True
+
+
 def process_text_command(text: str, lang: str, loop):
     command_start = time.perf_counter()
     text = (text or "").strip()
@@ -153,8 +230,26 @@ def process_text_command(text: str, lang: str, loop):
 
     print(f"\nText pipeline input [{lang.upper()}]: {text}")
     state["last_text"] = text
+    detection_summary = summarize_for_intention_detection(text)
     command_id = f"cmd-{int(time.time() * 1000)}"
-    loop.run_until_complete(broadcast({"type": "transcript", "text": text, "lang": lang}))
+    loop.run_until_complete(broadcast({
+        "type": "transcript",
+        "text": text,
+        "summary": detection_summary,
+        "lang": lang,
+    }))
+
+    cache_key = placement_cache_key(detection_summary, state["nodes"])
+    cached_placement = get_cache().get_json("placement_results", cache_key)
+    if cached_placement is not None and _serve_cached_placement(
+        cached_placement,
+        text=text,
+        lang=lang,
+        command_id=command_id,
+        command_start=command_start,
+        loop=loop,
+    ):
+        return
 
     detection_start = time.perf_counter()
     detected = detect_multiple_intentions(text)
@@ -316,6 +411,7 @@ def process_text_command(text: str, lang: str, loop):
         "type": "placement_result",
         "command_id": command_id,
         "command_text": text,
+        "command_summary": detection_summary,
         "intents": [i["id"] for i in detected],
         "intentions": [i["id"] for i in detected],
         "total_time_ms": total_elapsed_ms,
@@ -338,6 +434,10 @@ def process_text_command(text: str, lang: str, loop):
         "nodes": state["nodes"],
         "placements": state["placements"],
         "stats": state["stats"],
+        "cache_hit": False,
+        "source": "placement_engine",
+        "placement_reused": False,
+        "resources_applied": True,
     }
     websocket_prepare_ms = round((time.perf_counter() - websocket_prepare_start) * 1000, 2)
     total_elapsed_ms = round((time.perf_counter() - command_start) * 1000, 2)
@@ -370,6 +470,24 @@ def process_text_command(text: str, lang: str, loop):
     loop.run_until_complete(broadcast(payload))
 
     response = generate_response(text, detected, state["placements"][:len(detected)], lang)
+    post_placement_cache_key = placement_cache_key(detection_summary, state["nodes"])
+    get_cache().set_json(
+        "placement_results",
+        post_placement_cache_key,
+        placement_cache_value(
+            intent_ids=[intent["id"] for intent in detected],
+            command_summary=detection_summary,
+            per_intention=per_intention_times,
+            node=payload.get("node"),
+            latency=payload.get("lat"),
+            services=payload.get("services") or [],
+            response=response,
+        ),
+    )
+    print(
+        f"Placement result cached ({get_cache().backend_name}) "
+        f"for unchanged node state"
+    )
     print(f"\nResponse: {response}")
     speak(response, lang)
 

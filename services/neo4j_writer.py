@@ -15,19 +15,35 @@ except ImportError:
 neo4j_driver = None
 
 
-def connect() -> bool:
+def connect(attempts: int = 5, retry_delay: float = 1.0) -> bool:
     global neo4j_driver
     if not NEO4J_AVAILABLE:
         return False
-    try:
-        neo4j_driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
-        neo4j_driver.verify_connectivity()
-        print("✅ Neo4j connecté")
-        return True
-    except Exception as e:
-        print(f"⚠️  Neo4j non disponible : {e}")
-        neo4j_driver = None
-        return False
+    for attempt in range(1, attempts + 1):
+        driver = None
+        try:
+            driver = GraphDatabase.driver(
+                NEO4J_URI,
+                auth=(NEO4J_USER, NEO4J_PASSWORD),
+                connection_timeout=5,
+            )
+            driver.verify_connectivity()
+            neo4j_driver = driver
+            print(f"✅ Neo4j connecté ({NEO4J_URI})")
+            return True
+        except Exception as e:
+            if driver is not None:
+                driver.close()
+            neo4j_driver = None
+            if attempt < attempts:
+                print(
+                    f"⏳ Neo4j pas encore prêt "
+                    f"(tentative {attempt}/{attempts}) : {e}"
+                )
+                time.sleep(retry_delay)
+            else:
+                print(f"⚠️  Neo4j non disponible après {attempts} tentatives : {e}")
+    return False
 
 
 def write_voice_placement(intent: dict, results: list, text: str):

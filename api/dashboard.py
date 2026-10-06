@@ -41,10 +41,7 @@ body::before{{content:'';position:fixed;inset:0;background-image:linear-gradient
 .transcript-box.recording{{border-color:rgba(248,113,113,.5);animation:borderPulse 1.5s ease-in-out infinite}}
 .transcript-box.processing{{border-color:rgba(251,191,36,.4)}}
 @keyframes borderPulse{{0%,100%{{border-color:rgba(248,113,113,.2)}}50%{{border-color:rgba(248,113,113,.7)}}}}
-.text-input-wrap{{margin-top:10px;display:flex;gap:8px;align-items:flex-start}}
-.text-input{{flex:1;min-height:78px;resize:vertical;padding:10px 12px;border-radius:6px;border:1px solid var(--b);background:var(--s2);color:var(--t);font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'Outfit', sans-serif;font-size:13px;outline:none;transition:border .2s, box-shadow .2s}}
-.text-input:focus{{border-color:var(--a);box-shadow:0 0 0 2px rgba(56,189,248,.08)}}
-.send-btn{{height:42px;white-space:nowrap}}
+.text-input-wrap,.text-input,.send-btn{{display:none!important}}
 .helper-txt{{margin-top:6px;font-size:10px;color:var(--t3);font-family:'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'JetBrains Mono', monospace}}
 .intent-node{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}}
 .info-box{{background:var(--s2);border:1px solid var(--b);border-radius:4px;padding:10px}}
@@ -143,22 +140,13 @@ body::before{{content:'';position:fixed;inset:0;background-image:linear-gradient
 <div id="dashView" class="main view active">
   <div class="left">
     <div class="card">
-      <div class="card-title">Reconnaissance Vocale / Texte</div>
+      <div class="card-title">Reconnaissance Vocale</div>
 
       <div class="transcript-box" id="transcriptBox">
-        En attente de commande vocale... Clique sur 🎤 Parler ou tape une commande ci-dessous.
+        En attente de commande vocale... Clique sur 🎤 Parler.
       </div>
 
-      <div class="text-input-wrap">
-        <textarea
-          id="textCommand"
-          class="text-input"
-          placeholder="Tape une commande de maintenance ici...&#10;Exemple : Retrieve the operational status of machine X, then show me the AR sequence for power unit assembly."
-        ></textarea>
-        <button class="mic-btn send-btn" id="sendTextBtn" onclick="sendTextCommand()">✍️ Envoyer</button>
-      </div>
-
-      <div class="helper-txt">Ctrl + Entrée pour envoyer le texte</div>
+      <div class="helper-txt">Utilise uniquement le microphone pour envoyer une intention.</div>
 
       <div class="intent-node" id="intentNode" style="display:none">
         <div class="info-box">
@@ -194,7 +182,7 @@ body::before{{content:'';position:fixed;inset:0;background-image:linear-gradient
     <div class="card" style="flex:1">
       <div class="card-title">Journal de Placement</div>
       <div class="log-list" id="logList">
-        <div class="log-empty">Aucun placement — clique sur 🎤 Parler ou envoie un texte pour commencer</div>
+        <div class="log-empty">Aucun placement — clique sur 🎤 Parler pour commencer</div>
       </div>
     </div>
   </div>
@@ -254,8 +242,8 @@ const ws = new WebSocket('ws://localhost:{SERVER_PORT}/ws');
 let isRecording = false;
 const micBtn = document.getElementById('micBtn');
 const box = document.getElementById('transcriptBox');
-const textInput = document.getElementById('textCommand');
-const sendTextBtn = document.getElementById('sendTextBtn');
+const textInput = {{ addEventListener: () => {{}} }};
+const sendTextBtn = {{ disabled: false, textContent: '' }};
 let latestCommandId = '';
 let latestCommandText = '';
 let latestCommandIntentIds = [];
@@ -284,6 +272,7 @@ function toggleRecording() {{
 }}
 
 function sendTextCommand() {{
+  return;
   const text = textInput.value.trim();
   if (!text) return;
 
@@ -303,8 +292,7 @@ function resetSystem() {{
   document.getElementById('intentNode').style.display = 'none';
   clearLatestCommandHighlight();
   box.className = 'transcript-box';
-  box.textContent = 'Système remis à zéro. Clique sur 🎤 Parler ou tape une commande pour recommencer.';
-  textInput.value = '';
+  box.textContent = 'Système remis à zéro. Clique sur 🎤 Parler pour recommencer.';
   setIdle();
 }}
 
@@ -314,7 +302,6 @@ function setIdle() {{
   micBtn.textContent = '🎤 Parler';
   micBtn.disabled = false;
 
-  sendTextBtn.disabled = false;
   sendTextBtn.textContent = '✍️ Envoyer';
 
   box.className = 'transcript-box';
@@ -460,7 +447,7 @@ ws.onmessage = (e) => {{
 
   if (msg.type === 'transcript') {{
     box.className = 'transcript-box';
-    box.textContent = msg.text;
+    box.textContent = msg.summary || msg.text;
   }}
 
   if (msg.type === 'placement' || msg.type === 'placement_result') {{
@@ -482,7 +469,7 @@ ws.onmessage = (e) => {{
     clearLatestCommandHighlight();
     box.textContent = msg.text
       ? `❓ "${{msg.text}}" — Aucune intention IBN détectée`
-      : '❌ Aucun audio ou texte valide détecté. Réessayez.';
+      : '❌ Aucun audio valide détecté. Réessayez.';
   }}
 
   if (msg.type === 'placement_failed') {{
@@ -558,7 +545,7 @@ function renderLog(placements) {{
   updatePlacementTimeStats(placements);
 
   if (!placements || !placements.length) {{
-    list.innerHTML = '<div class="log-empty">Aucun placement — clique sur 🎤 Parler ou envoie un texte pour commencer</div>';
+    list.innerHTML = '<div class="log-empty">Aucun placement — clique sur 🎤 Parler pour commencer</div>';
     return;
   }}
 

@@ -1428,5 +1428,27 @@
     "risk_level": "LOW",
     "follow_up_en": "What evidence should be attached to a closed maintenance action?",
     "follow_up_fr": "Quelles preuves joindre a une action maintenance cloturee ?"
+  },
+  {
+    "id": 131,
+    "question_en": "Explain how Edge Computing improves real-time industrial maintenance.",
+    "question_fr": "Comment le Edge Computing ameliore-t-il la maintenance industrielle en temps reel ?",
+    "answer_en": "Edge Computing improves real-time industrial maintenance by processing sensor and machine data close to the equipment instead of sending everything to a distant cloud. This reduces latency, keeps critical decisions available even with limited network connectivity, and allows technicians to receive faster alerts about vibration, temperature, alarms, anomalies, and equipment degradation.",
+    "answer_fr": "Le Edge Computing ameliore la maintenance industrielle en temps reel en traitant les donnees des capteurs et des machines pres des equipements, au lieu de tout envoyer vers un cloud distant. Cela reduit la latence, maintient les decisions critiques disponibles meme avec une connectivite limitee, et permet au technicien de recevoir plus rapidement les alertes liees aux vibrations, temperatures, alarmes, anomalies et degradations.",
+    "category": "Edge Computing",
+    "risk_level": "LOW",
+    "follow_up_en": "How does Edge Computing support predictive maintenance?",
+    "follow_up_fr": "Comment le Edge Computing soutient-il la maintenance predictive ?"
+  },
+  {
+    "id": 132,
+    "question_en": "What is the role of Intent-Based Networking in Industry 5.0 and how can it help an industrial technician?",
+    "question_fr": "Quel est le role de l'Intent-Based Networking dans l'Industrie 5.0 et comment aide-t-il un technicien industriel ?",
+    "answer_en": "Intent-Based Networking allows a technician to express an operational need in natural language, such as requesting assistance, monitoring, protocol conversion, AR guidance, or anomaly analysis. The system translates this intent into technical actions, selects the required services, and places them on suitable Edge nodes while respecting resource and latency constraints. In Industry 5.0, this makes human-machine interaction more natural, faster, and easier to supervise.",
+    "answer_fr": "L'Intent-Based Networking permet au technicien d'exprimer un besoin operationnel en langage naturel, par exemple demander une assistance, une surveillance, une conversion de protocole, une guidance AR ou une analyse d'anomalies. Le systeme transforme cette intention en actions techniques, selectionne les services necessaires et les place sur les noeuds Edge adaptes en respectant les contraintes de ressources et de latence. Dans l'Industrie 5.0, cela rend l'interaction homme-machine plus naturelle, rapide et facile a superviser.",
+    "category": "Intent-Based Networking",
+    "risk_level": "LOW",
+    "follow_up_en": "How does IBN choose the best Edge node for a service?",
+    "follow_up_fr": "Comment l'IBN choisit-il le meilleur noeud Edge pour un service ?"
   }
 ]

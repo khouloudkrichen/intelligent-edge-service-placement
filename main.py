@@ -7,11 +7,12 @@
 #   Ouvrir : http://localhost:8081
 # ═══════════════════════════════════════════════════════
 
+import asyncio
 import threading
 import uvicorn
 
 from config      import SERVER_PORT
-from api.server  import app
+from api.server  import app, warm_up_services
 from data.dataset import preload_dataset
 from core.detection import preload_detection_profiles
 from voice_loop  import voice_loop
@@ -25,6 +26,7 @@ if __name__ == "__main__":
         f"{len(cache['intentions'])} intentions"
     )
     print(f"✅ Detection profiles ready: {len(detection_profiles)} intentions")
+    asyncio.run(warm_up_services())
     threading.Thread(target=voice_loop, daemon=True).start()
     print(f"\n🌐 Dashboard : http://localhost:{SERVER_PORT}")
     uvicorn.run(app, host="0.0.0.0", port=SERVER_PORT, log_level="warning")

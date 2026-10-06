@@ -2,6 +2,7 @@
 
 import random
 import time
+import json
 
 from data.dataset import (
     INTENTION_REQUIREMENTS,
@@ -12,6 +13,7 @@ from data.dataset import (
     latency_map,
 )
 from core.nodes import get_node_state, get_available
+from services.cache import get_cache
 
 PLACED = "PLACED"
 DEGRADED = "DEGRADED"
@@ -43,10 +45,17 @@ def total_resources(service_ids: list) -> dict:
 
 
 def resources_for_intention(intent: dict) -> dict:
-    cached = INTENTION_REQUIREMENTS.get(intent.get("id"))
-    if cached:
+    cache_key = json.dumps(
+        {"id": intent.get("id"), "services": intent.get("services", [])},
+        sort_keys=True,
+    )
+    cached = get_cache().get_json("intention_resources", cache_key)
+    if cached is not None:
         return dict(cached)
-    return total_resources(intent.get("services", []))
+    required = INTENTION_REQUIREMENTS.get(intent.get("id"))
+    resources = dict(required) if required else total_resources(intent.get("services", []))
+    get_cache().set_json("intention_resources", cache_key, resources)
+    return resources
 
 
 def service_priority(service_id: str) -> int:

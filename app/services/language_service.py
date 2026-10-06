@@ -1,6 +1,11 @@
-from langdetect import DetectorFactory, detect
+try:
+    from langdetect import DetectorFactory, detect
 
-DetectorFactory.seed = 0
+    DetectorFactory.seed = 0
+    LANGDETECT_AVAILABLE = True
+except ImportError:
+    detect = None
+    LANGDETECT_AVAILABLE = False
 
 SUPPORTED_LANGUAGES = {"en", "fr", "ar"}
 
@@ -13,6 +18,9 @@ def detect_language(text: str) -> str:
 
     if any("\u0600" <= char <= "\u06ff" for char in cleaned):
         return "ar"
+
+    if not LANGDETECT_AVAILABLE:
+        return _simple_language_fallback(cleaned)
 
     try:
         language = detect(cleaned)

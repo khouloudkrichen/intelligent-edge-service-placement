@@ -2,24 +2,35 @@
 # api/server.py — FastAPI + WebSocket + routes
 # ═══════════════════════════════════════════════════════
 
+import asyncio
 import json
 import math
+from contextlib import asynccontextmanager
 from pathlib import Path
-from time import strftime
+from time import perf_counter, strftime
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from api.dashboard         import DASHBOARD_HTML
 from app.models.schemas    import ChatRequest, ChatResponse
+from config                import OLLAMA_WARMUP_TIMEOUT_SECONDS
 from core.nodes            import state, init_nodes
+from services.cache        import get_cache
 from services.neo4j_writer import neo4j_driver, NEO4J_DB, clear_all
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 
-app = FastAPI(title="IBN Voice Dashboard")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    await warm_up_services()
+    yield
+
+
+app = FastAPI(title="IBN Voice Dashboard", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -64,13 +75,62 @@ CHATBOT_STORAGE = BASE_DIR / "app" / "data"
 CHATBOT_LOG = BASE_DIR / "logs" / "chat_logs.jsonl"
 _chat_services = {"rag": None, "logger": None}
 analytics_history: list[dict] = []
+_warm_up_complete = False
+
+
+def _chat_cache_key(language: str, message: str) -> str:
+    return f"{language}:{message.strip().casefold()}"
+
+
+def _chat_response_from_dataset_item(rag_service, item: dict, language: str, question: str, confidence: float = 1.0) -> dict:
+    return {
+        "answer": rag_service._answer_for_language(item, language),
+        "category": item.get("category"),
+        "risk": item.get("risk_level"),
+        "follow_up": rag_service._follow_up_for_language(item, language),
+        "confidence": round(confidence, 2),
+        "language": language,
+        "suggestions": [],
+        "source": "dataset",
+        "fallback_used": False,
+        "matched_question": question,
+    }
+
+
+def _preload_chatbot_response_cache(rag_service) -> None:
+    cache = get_cache()
+    loaded = 0
+    for item in rag_service.dataset:
+        for language, question in (
+            ("en", item.get("question_en", "")),
+            ("fr", item.get("question_fr", "")),
+        ):
+            if not question:
+                continue
+            response_data = _chat_response_from_dataset_item(
+                rag_service,
+                item,
+                language,
+                question,
+                confidence=1.0,
+            )
+            cache.set_json("chatbot_responses", _chat_cache_key(language, question), response_data)
+            loaded += 1
+    print(f"Warm-up: chatbot response cache preloaded ({loaded} dataset questions)")
+
+
+def get_chat_logger():
+    if _chat_services["logger"] is None:
+        from app.services.logger_service import ChatLogger
+
+        _chat_services["logger"] = ChatLogger(CHATBOT_LOG)
+    return _chat_services["logger"]
 
 
 def get_chat_services():
     if _chat_services["rag"] is not None:
         return _chat_services["rag"], _chat_services["logger"]
     try:
-        from app.services.logger_service import ChatLogger
         from app.services.rag_service import RAGService
     except Exception as e:
         raise HTTPException(
@@ -81,8 +141,67 @@ def get_chat_services():
         dataset_path=CHATBOT_DATASET,
         storage_dir=CHATBOT_STORAGE,
     )
-    _chat_services["logger"] = ChatLogger(CHATBOT_LOG)
+    _chat_services["logger"] = get_chat_logger()
     return _chat_services["rag"], _chat_services["logger"]
+
+
+def _warm_up_placement_engine():
+    from core.placement import resources_for_intention, select_node
+    from data.dataset import intentions
+
+    if not intentions:
+        return
+    intent = min(intentions, key=lambda item: len(item.get("services", [])))
+    required = resources_for_intention(intent)
+    select_node(
+        required,
+        intent["QoS"]["latency"],
+        intent.get("services", []),
+        intent_desc=intent.get("description", ""),
+    )
+    print(f"Warm-up: placement engine ready ({intent['id']}, state unchanged)")
+
+
+def _warm_up_ollama():
+    from services.llm import ollama_call
+
+    try:
+        ollama_call(
+            "Reply OK.",
+            max_tokens=1,
+            temperature=0.0,
+            timeout=OLLAMA_WARMUP_TIMEOUT_SECONDS,
+        )
+        print("Warm-up: Ollama request completed")
+    except Exception as exc:
+        print(f"Warm-up: Ollama unavailable, continuing without it ({exc})")
+
+
+async def warm_up_services():
+    global _warm_up_complete
+    if _warm_up_complete:
+        return
+    started = perf_counter()
+    print("Warm-up started")
+    get_cache()
+
+    try:
+        await asyncio.to_thread(get_chat_services)
+        rag_service, _ = get_chat_services()
+        await asyncio.to_thread(_preload_chatbot_response_cache, rag_service)
+        print("Warm-up: RAG dataset, embeddings and FAISS index ready")
+    except Exception as exc:
+        print(f"Warm-up: RAG service unavailable, lazy retry will remain enabled ({exc})")
+
+    try:
+        await asyncio.to_thread(_warm_up_placement_engine)
+    except Exception as exc:
+        print(f"Warm-up: placement engine failed, continuing ({exc})")
+
+    await asyncio.to_thread(_warm_up_ollama)
+    elapsed_ms = round((perf_counter() - started) * 1000, 2)
+    _warm_up_complete = True
+    print(f"Warm-up completed ({elapsed_ms}ms)")
 
 
 def _pct(used: float, total: float) -> float:
@@ -407,9 +526,26 @@ async def chatbot_chat(request: ChatRequest):
             detail=f"Chatbot dependencies are missing or failed to import: {e}",
         )
 
-    rag_service, chat_logger = get_chat_services()
     user_message = request.message.strip()
     language = detect_language(user_message)
+    cache_key = _chat_cache_key(language, user_message)
+    cached_response = get_cache().get_json("chatbot_responses", cache_key)
+    if cached_response is not None:
+        chat_logger = get_chat_logger()
+        chat_logger.log_chat(
+            user_message=user_message,
+            detected_language=language,
+            confidence=cached_response["confidence"],
+            source=cached_response["source"],
+            ollama_model=OLLAMA_MODEL if cached_response["source"] == "ollama" else None,
+            matched_question=cached_response.get("matched_question"),
+            category=cached_response.get("category"),
+            risk=cached_response.get("risk"),
+            fallback_used=cached_response["fallback_used"],
+        )
+        return ChatResponse(**cached_response)
+
+    rag_service, chat_logger = get_chat_services()
     response_data, meta = rag_service.answer(user_message, language)
 
     if not meta["dataset_match"]:
@@ -443,7 +579,101 @@ async def chatbot_chat(request: ChatRequest):
         fallback_used=response_data["fallback_used"],
     )
 
+    if not str(response_data["answer"]).startswith("Ollama fallback failed:"):
+        get_cache().set_json("chatbot_responses", cache_key, response_data)
+
     return ChatResponse(**response_data)
+
+
+@app.post("/chat/stream")
+async def chatbot_chat_stream(request: ChatRequest):
+    """Stream Ollama output while keeping dataset and Redis responses immediate."""
+    try:
+        from app.services.language_service import detect_language
+        from app.services.ollama_service import OLLAMA_MODEL, stream_with_ollama
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Chatbot dependencies are missing or failed to import: {exc}",
+        )
+
+    user_message = request.message.strip()
+    language = detect_language(user_message)
+    cache_key = _chat_cache_key(language, user_message)
+
+    def event(payload: dict) -> bytes:
+        return (json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8")
+
+    def generate():
+        cached_response = get_cache().get_json("chatbot_responses", cache_key)
+        if cached_response is not None:
+            yield event({"type": "complete", "data": cached_response})
+            return
+
+        rag_service, chat_logger = get_chat_services()
+        response_data, meta = rag_service.answer(user_message, language)
+
+        if meta["dataset_match"]:
+            response_data["source"] = "dataset"
+            response_data["fallback_used"] = False
+            response_data["matched_question"] = meta["matched_question"]
+            get_cache().set_json("chatbot_responses", cache_key, response_data)
+            chat_logger.log_chat(
+                user_message=user_message,
+                detected_language=language,
+                confidence=response_data["confidence"],
+                source="dataset",
+                ollama_model=None,
+                matched_question=meta["matched_question"],
+                category=response_data["category"],
+                risk=response_data["risk"],
+                fallback_used=False,
+            )
+            yield event({"type": "complete", "data": response_data})
+            return
+
+        response_data.update({
+            "answer": "",
+            "category": "General",
+            "risk": "LOW",
+            "follow_up": "",
+            "suggestions": [],
+            "source": "ollama",
+            "fallback_used": True,
+            "matched_question": meta["matched_question"],
+        })
+        yield event({"type": "meta", "data": response_data})
+
+        chunks = []
+        for chunk in stream_with_ollama(user_message):
+            chunks.append(chunk)
+            yield event({"type": "chunk", "text": chunk})
+
+        response_data["answer"] = "".join(chunks).strip()
+        failed = response_data["answer"].startswith("Ollama fallback failed:")
+        if not failed:
+            get_cache().set_json("chatbot_responses", cache_key, response_data)
+        chat_logger.log_chat(
+            user_message=user_message,
+            detected_language=language,
+            confidence=response_data["confidence"],
+            source="ollama",
+            ollama_model=OLLAMA_MODEL,
+            matched_question=meta["matched_question"],
+            category=response_data["category"],
+            risk=response_data["risk"],
+            fallback_used=True,
+        )
+        yield event({"type": "complete", "data": response_data})
+
+    return StreamingResponse(
+        generate(),
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.get("/state")

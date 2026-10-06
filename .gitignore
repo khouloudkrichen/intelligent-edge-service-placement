@@ -1,1 +1,30 @@
 logs/ 
+# Environnement Python
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Logs
+logs/
+*.log
+
+# Fichiers temporaires
+tmp/
+temp/
+
+# Outputs générés
+output/
+outputs/
+
+# Fichiers système
+.vscode/
+.idea/
+.DS_Store
+# Configuration locale contenant des informations sensibles
+config.py
+.env
